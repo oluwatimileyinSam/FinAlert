@@ -365,19 +365,40 @@ class FinAlertWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(16)
+        layout.setSpacing(14)
+
+        eyebrow = QLabel("TELEGRAM  /  DELIVERY AUDIT")
+        eyebrow.setObjectName("HistoryEyebrow")
 
         heading = QLabel("Notification history")
         heading.setObjectName("SectionHeading")
 
         description = QLabel(
-            "Recent Telegram alerts, grouped with the mailbox and email "
-            "they came from."
+            "Trace each alert back to its mailbox, message, and delivery attempt."
         )
         description.setObjectName("SecondaryText")
+        description.setWordWrap(True)
+
+        panel = QFrame()
+        panel.setObjectName("HistoryPanel")
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(18, 16, 18, 16)
+        panel_layout.setSpacing(12)
+
+        panel_header = QHBoxLayout()
+        panel_title = QLabel("Recent delivery attempts")
+        panel_title.setObjectName("HistoryPanelTitle")
+
+        channel_label = QLabel("TELEGRAM")
+        channel_label.setObjectName("HistoryChannel")
+
+        panel_header.addWidget(panel_title)
+        panel_header.addStretch()
+        panel_header.addWidget(channel_label)
 
         self.notification_summary = QLabel("No notification history yet.")
-        self.notification_summary.setObjectName("SecondaryText")
+        self.notification_summary.setObjectName("HistorySummary")
+        self.notification_summary.setWordWrap(True)
 
         self.notification_table = QTableWidget(0, 6)
         self.notification_table.setHorizontalHeaderLabels([
@@ -404,10 +425,15 @@ class FinAlertWindow(QMainWindow):
             QHeaderView.ResizeMode.Stretch
         )
 
+        panel_layout.addLayout(panel_header)
+        panel_layout.addWidget(self.notification_summary)
+        panel_layout.addWidget(self.notification_table, 1)
+
+        layout.addWidget(eyebrow)
         layout.addWidget(heading)
         layout.addWidget(description)
-        layout.addWidget(self.notification_summary)
-        layout.addWidget(self.notification_table, 1)
+        layout.addWidget(panel, 1)
+
         return page
 
     def make_finance_page(self):
@@ -835,6 +861,40 @@ class FinAlertWindow(QMainWindow):
                 color: #19263a;
                 font-size: 14px;
                 font-weight: 700;
+            }
+
+            QLabel#HistoryEyebrow {
+                color: #167f72;
+                font-size: 10px;
+                font-weight: 750;
+                letter-spacing: 1.3px;
+            }
+            QFrame#HistoryPanel {
+                background: #ffffff;
+                border: 1px solid #e0e6ef;
+                border-radius: 14px;
+            }
+            QLabel#HistoryPanelTitle {
+                color: #19263a;
+                font-size: 14px;
+                font-weight: 700;
+            }
+            QLabel#HistoryChannel {
+                background: #e5f7f3;
+                color: #167f72;
+                border-radius: 8px;
+                padding: 5px 9px;
+                font-size: 9px;
+                font-weight: 750;
+                letter-spacing: 1px;
+            }
+            QLabel#HistorySummary {
+                background: #f4f7fa;
+                color: #526277;
+                border: 1px solid #e6ebf1;
+                border-radius: 8px;
+                padding: 9px 11px;
+                font-size: 11px;
             }
 """
 
