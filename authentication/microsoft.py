@@ -147,6 +147,24 @@ class MicrosoftAuth:
         self._save_cache()
         return result
 
+    def acquire_for_silent(self, account):
+        """Get a token silently for background work; never open a browser."""
+        result = self.client.acquire_token_silent(SCOPES, account=account)
+
+        if not result or "access_token" not in result:
+            error_code = (
+                result.get("error", "token_unavailable")
+                if result
+                else "token_unavailable"
+            )
+            LOGGER.warning("Silent Microsoft token renewal failed (%s)", error_code)
+            raise AuthenticationError(
+                "Microsoft sign-in is required. Open FinAlert and reconnect this account."
+            )
+
+        self._save_cache()
+        return result
+
     def disconnect(self, home_account_id):
         """Remove only the selected account from the local MSAL cache."""
         account = next(
