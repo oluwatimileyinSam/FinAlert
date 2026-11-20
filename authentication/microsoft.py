@@ -13,6 +13,7 @@ LOGGER = logging.getLogger(__name__)
 
 KEYRING_SERVICE = "FinAlert"
 KEYRING_USERNAME = "MicrosoftTokenCache"
+PACKAGED_KEYRING_USERNAME = "MicrosoftTokenCache-Packaged"
 SCOPES = ["User.Read", "Mail.Read"]
 
 
@@ -85,11 +86,16 @@ class MicrosoftAuth:
             )
 
         self.cache = msal.SerializableTokenCache()
+        self.keyring_username = (
+            PACKAGED_KEYRING_USERNAME
+            if getattr(sys, "frozen", False)
+            else KEYRING_USERNAME
+        )
 
         try:
             saved_cache = keyring.get_password(
                 KEYRING_SERVICE,
-                KEYRING_USERNAME,
+                self.keyring_username,
             )
             if saved_cache:
                 self.cache.deserialize(saved_cache)
@@ -187,7 +193,7 @@ class MicrosoftAuth:
         try:
             keyring.set_password(
                 KEYRING_SERVICE,
-                KEYRING_USERNAME,
+                self.keyring_username,
                 self.cache.serialize(),
             )
         except Exception as exc:
