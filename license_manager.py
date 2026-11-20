@@ -209,15 +209,23 @@ class LicenseManager:
         if not key:
             raise LicenseError("Enter a license key.")
 
-        if self.license_path.exists():
-            raise LicenseError("FinAlert is already activated on this device.")
-
         existing_pending = self._read_json(self.pending_path)
         if existing_pending is not None:
             raise LicenseError(
                 "A previous activation is still pending. Connect to the "
                 "internet and restart FinAlert to finish it."
             )
+
+        if self.license_path.exists():
+            try:
+                self.check_saved_license()
+            except LicenseError as exc:
+                if exc.retryable:
+                    raise
+            else:
+                raise LicenseError(
+                    "FinAlert is already activated on this device."
+                )
 
         pending = {
             "license_key": key,
