@@ -1,11 +1,9 @@
-import configparser
 import logging
-import os
 import signal
 import threading
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 
+from app_config import CONFIG_PATH, microsoft_settings, scan_interval_seconds
 from authentication.microsoft import AuthenticationError, MicrosoftAuth
 from email_monitor.pipeline import FinanceScanner, default_database_path
 from notifications.service import NotificationService
@@ -13,82 +11,17 @@ from notifications.telegram_client import TelegramError
 from storage.database import FinanceDatabase
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CONFIG_PATH = PROJECT_ROOT / "fin_alert.ini"
-ENV_PATH = PROJECT_ROOT / ".env"
 LOGGER = logging.getLogger("FinAlert.background")
 
 
-def read_local_env():
-    """Read simple KEY=value settings from the local .env file."""
-    values = {}
-    try:
-        lines = ENV_PATH.read_text(encoding="utf-8").splitlines()
-    except FileNotFoundError:
-        return values
-
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        if line.startswith("export "):
-            line = line[len("export "):].strip()
-
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
-            value = value[1:-1]
-
-        if key:
-            values[key] = value
-
-    return values
-
-
 def load_configuration():
-    """Load local settings, with environment variables taking priority."""
-    env_values = read_local_env()
-    ini = configparser.ConfigParser()
-    ini.read(CONFIG_PATH, encoding="utf-8")
-
-    client_id = (
-        os.environ.get("MICROSOFT_CLIENT_ID")
-        or env_values.get("MICROSOFT_CLIENT_ID")
-        or ini.get("Microsoft", "CLIENT_ID", fallback="")
-    ).strip()
-
-    authority = (
-        os.environ.get("MICROSOFT_AUTHORITY")
-        or env_values.get("MICROSOFT_AUTHORITY")
-        or ini.get(
-            "Microsoft",
-            "AUTHORITY",
-            fallback="https://login.microsoftonline.com/common",
-        )
-    ).strip()
-
-    interval_text = (
-        os.environ.get("FINALERT_SCAN_INTERVAL_SECONDS")
-        or env_values.get("FINALERT_SCAN_INTERVAL_SECONDS")
-        or "60"
-    )
-
-    try:
-        interval = int(interval_text)
-    except ValueError:
-        LOGGER.warning("Invalid scan interval; using 60 seconds.")
-        interval = 60
-
-    if not 15 <= interval <= 3600:
-        LOGGER.warning("Scan interval must be 15–3600 seconds; using 60 seconds.")
-        interval = 60
+    """Load settings from app_config.py."""
+    client_id, authority = microsoft_settings()
 
     if not client_id or client_id == "REPLACE_WITH_APP_CLIENT_ID":
-        raise ValueError("Set MICROSOFT_CLIENT_ID in .env before starting.")
+        raise ValueError("Set MICROSOFT_CLIENT_ID in your local settings.")
 
-    return client_id, authority, interval
+    return client_id, authority, scan_interval_seconds()
 
 
 class SilentAuthentication:
