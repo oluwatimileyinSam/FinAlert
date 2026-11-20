@@ -9,6 +9,7 @@ from email_monitor.pipeline import FinanceScanner, default_database_path
 from notifications.service import NotificationService
 from notifications.telegram_client import TelegramError
 from storage.database import FinanceDatabase
+from license_manager import LicenseError, LicenseManager
 
 
 LOGGER = logging.getLogger("FinAlert.background")
@@ -120,7 +121,24 @@ def main():
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, request_stop)
 
+    license_manager = LicenseManager()
+    license_problem = None
+
     while not stop_event.is_set():
+        try:
+            license_manager.check_saved_license()
+        except LicenseError as exc:
+            problem = str(exc)
+            if problem != license_problem:
+                LOGGER.warning("Background monitoring paused: %s", problem)
+                license_problem = problem
+            stop_event.wait(interval)
+            continue
+
+        if license_problem is not None:
+            LOGGER.info("A valid license is active; monitoring resumed.")
+            license_problem = None
+
         scan_accounts(authentication, scanner, notifications)
         stop_event.wait(interval)
 
