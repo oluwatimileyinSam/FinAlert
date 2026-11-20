@@ -1,6 +1,7 @@
 import configparser
 import logging
 import sys
+from collections import Counter
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from authentication.microsoft import AuthenticationError, MicrosoftAuth
+from email_monitor.graph_client import GraphAPIError, GraphMailClient
 
 
 logging.basicConfig(level=logging.INFO)
@@ -47,7 +49,7 @@ class FinAlertWindow(QMainWindow):
         self.pages.addWidget(
             self.make_page(
                 "Finance overview",
-                "Connect a Microsoft account to get started.",
+                "Select Microsoft accounts to check recent mailbox messages.",
             )
         )
         self.pages.addWidget(self.make_accounts_page())
@@ -60,7 +62,7 @@ class FinAlertWindow(QMainWindow):
         self.pages.addWidget(
             self.make_page(
                 "Finance activity",
-                "Detected activity will appear here.",
+                "Finance classification will be added in a later step.",
             )
         )
         self.pages.addWidget(
@@ -123,9 +125,13 @@ class FinAlertWindow(QMainWindow):
         disconnect_button = QPushButton("Disconnect selected")
         disconnect_button.clicked.connect(self.disconnect_account)
 
+        check_button = QPushButton("Check selected mailbox")
+        check_button.clicked.connect(self.check_selected_mailbox)
+
         buttons = QHBoxLayout()
         buttons.addWidget(connect_button)
         buttons.addWidget(disconnect_button)
+        buttons.addWidget(check_button)
         buttons.addStretch()
         layout.addLayout(buttons)
 
@@ -191,6 +197,61 @@ class FinAlertWindow(QMainWindow):
                 account.get("home_account_id"),
             )
             self.account_list.addItem(item)
+
+        if self.account_list.count():
+            self.account_list.setCurrentRow(0)
+
+    def check_selected_mailbox(self):
+        item = self.account_list.currentItem()
+        if item is None:
+            QMessageBox.information(
+                self,
+                "Check mailbox",
+                "Select a connected Microsoft account first.",
+            )
+            return
+
+        account_id = item.data(Qt.ItemDataRole.UserRole)
+
+        try:
+            account = next(
+                account
+                for account in self.get_auth().accounts()
+                if account.get("home_account_id") == account_id
+            )
+            messages = GraphMailClient(self.get_auth()).fetch_recent_messages(
+                account,
+                limit_per_folder=5,
+            )
+            counts = Counter(
+                message.get("fin_alert_folder")
+                for message in messages
+            )
+
+            QMessageBox.information(
+                self,
+                "Mailbox check complete",
+                "Recent messages loaded:\n"
+                f"Inbox: {counts['Inbox']}\n"
+                f"Sent Items: {counts['Sent Items']}",
+            )
+        except StopIteration:
+            QMessageBox.warning(
+                self,
+                "Check mailbox",
+                "That Microsoft account is no longer connected.",
+            )
+        except AuthenticationError as exc:
+            QMessageBox.warning(self, "Microsoft sign-in", str(exc))
+        except GraphAPIError as exc:
+            QMessageBox.warning(self, "Mailbox check", str(exc))
+        except Exception:
+            logging.exception("Unexpected mailbox check error")
+            QMessageBox.critical(
+                self,
+                "Mailbox check",
+                "FinAlert could not read this mailbox. Check the connection and try again.",
+            )
 
     def disconnect_account(self):
         item = self.account_list.currentItem()
