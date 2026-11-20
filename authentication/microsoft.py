@@ -1,8 +1,9 @@
 import logging
+import os
 import shutil
-import subprocess
 import sys
 import webbrowser
+from pathlib import Path
 
 import keyring
 import msal
@@ -19,44 +20,69 @@ class AuthenticationError(Exception):
     """An authentication error that is safe to show in the app."""
 
 
-def open_chrome_or_default(auth_url):
-    """Open Microsoft sign-in in Chrome when available."""
-    try:
-        if sys.platform == "darwin":
-            result = subprocess.run(
-                ["open", "-a", "Google Chrome", auth_url],
-                check=False,
-                capture_output=True,
-            )
-            if result.returncode == 0:
-                return
+def find_chrome():
+    """Find a Chrome executable on macOS, Windows, or Linux."""
+    chrome_from_path = (
+        shutil.which("chrome")
+        or shutil.which("chrome.exe")
+        or shutil.which("google-chrome")
+        or shutil.which("chromium")
+    )
+    if chrome_from_path:
+        return chrome_from_path
 
-        elif sys.platform == "win32":
-            chrome = shutil.which("chrome") or shutil.which("chrome.exe")
-            if chrome:
-                subprocess.Popen([chrome, auth_url], close_fds=True)
-                return
+    if sys.platform == "darwin":
+        candidates = [
+            Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+            Path.home() / "Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        ]
+    elif sys.platform == "win32":
+        candidates = [
+            Path(os.environ.get("PROGRAMFILES", "C:/Program Files"))
+            / "Google/Chrome/Application/chrome.exe",
+            Path(os.environ.get("PROGRAMFILES(X86)", "C:/Program Files (x86)"))
+            / "Google/Chrome/Application/chrome.exe",
+            Path(os.environ.get("LOCALAPPDATA", ""))
+            / "Google/Chrome/Application/chrome.exe",
+        ]
+    else:
+        candidates = [
+            Path("/usr/bin/google-chrome"),
+            Path("/usr/bin/chromium"),
+            Path("/usr/bin/chromium-browser"),
+        ]
 
-        else:
-            chrome = (
-                shutil.which("google-chrome")
-                or shutil.which("chrome")
-                or shutil.which("chromium")
-            )
-            if chrome:
-                subprocess.Popen([chrome, auth_url], close_fds=True)
-                return
+    return next((str(path) for path in candidates if path.is_file()), None)
 
-    except OSError:
-        LOGGER.info("Chrome could not be opened; using the default browser.")
 
-    webbrowser.open(auth_url, new=1)
+def prepare_browser(**kwargs):
+    """Prefer Chrome for MSAL's browser launch, with a system-browser fallback."""
+    if kwargs.get("ui") != "browser":
+        return
+
+    chrome = find_chrome()
+    if not chrome:
+        LOGGER.info("Chrome was not found; MSAL will use the default browser.")
+        return
+
+    webbrowser.register(
+        "fin_alert_chrome",
+        None,
+        webbrowser.BackgroundBrowser(chrome),
+        preferred=True,
+    )
 
 
 class MicrosoftAuth:
-    def __init__(self, client_id, authority="https://login.microsoftonline.com/common"):
+    def __init__(
+        self,
+        client_id,
+        authority="https://login.microsoftonline.com/common",
+    ):
         if not client_id or client_id == "REPLACE_WITH_APP_CLIENT_ID":
-            raise AuthenticationError("The Microsoft application client ID is not configured.")
+            raise AuthenticationError(
+                "The Microsoft application client ID is not configured."
+            )
 
         self.cache = msal.SerializableTokenCache()
 
@@ -88,7 +114,7 @@ class MicrosoftAuth:
         result = self.client.acquire_token_interactive(
             scopes=SCOPES,
             prompt="select_account",
-            on_before_launching_ui=open_chrome_or_default,
+            on_before_launching_ui=prepare_browser,
         )
 
         if "access_token" not in result:
@@ -109,7 +135,7 @@ class MicrosoftAuth:
                 scopes=SCOPES,
                 account=account,
                 prompt="select_account",
-                on_before_launching_ui=open_chrome_or_default,
+                on_before_launching_ui=prepare_browser,
             )
 
         if "access_token" not in result:
