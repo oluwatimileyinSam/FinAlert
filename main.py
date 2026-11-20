@@ -487,24 +487,44 @@ class FinAlertWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(16)
+        layout.setSpacing(14)
+
+        eyebrow = QLabel("AUTOMATION  /  SCAN SCHEDULE")
+        eyebrow.setObjectName("SettingsEyebrow")
 
         heading = QLabel("Monitoring settings")
         heading.setObjectName("SectionHeading")
 
         description = QLabel(
-            "Choose how often the background monitor checks connected mailboxes."
+            "Control how often FinAlert checks connected mailboxes in the background."
         )
         description.setObjectName("SecondaryText")
+        description.setWordWrap(True)
 
         panel = QFrame()
-        panel.setObjectName("StatCard")
+        panel.setObjectName("SettingsPanel")
         panel_layout = QVBoxLayout(panel)
         panel_layout.setContentsMargins(20, 18, 20, 18)
         panel_layout.setSpacing(16)
 
+        panel_header = QHBoxLayout()
+        panel_title = QLabel("Mailbox check interval")
+        panel_title.setObjectName("SettingsPanelTitle")
+
+        range_badge = QLabel("15 SEC TO 60 MIN")
+        range_badge.setObjectName("SettingsRange")
+
+        panel_header.addWidget(panel_title)
+        panel_header.addStretch()
+        panel_header.addWidget(range_badge)
+
+        interval_detail = QLabel(
+            "Choose the time between automatic mailbox scans."
+        )
+        interval_detail.setObjectName("SecondaryText")
+
         interval_row = QHBoxLayout()
-        interval_label = QLabel("Mailbox check interval")
+        interval_label = QLabel("Check every")
         interval_label.setObjectName("StatLabel")
 
         self.scan_interval_input = QSpinBox()
@@ -516,24 +536,30 @@ class FinAlertWindow(QMainWindow):
         interval_row.addWidget(interval_label)
         interval_row.addStretch()
         interval_row.addWidget(self.scan_interval_input)
-        panel_layout.addLayout(interval_row)
 
-        save_button = QPushButton("Save settings")
+        save_button = QPushButton("Save schedule")
         save_button.setObjectName("PrimaryButton")
         save_button.setCursor(Qt.CursorShape.PointingHandCursor)
         save_button.clicked.connect(self.save_monitoring_settings)
+
+        panel_layout.addLayout(panel_header)
+        panel_layout.addWidget(interval_detail)
+        panel_layout.addLayout(interval_row)
         panel_layout.addWidget(save_button, 0, Qt.AlignmentFlag.AlignLeft)
 
         self.settings_status = QLabel(
             "The saved interval applies the next time background monitoring starts."
         )
-        self.settings_status.setObjectName("SecondaryText")
+        self.settings_status.setObjectName("SettingsStatus")
+        self.settings_status.setWordWrap(True)
 
+        layout.addWidget(eyebrow)
         layout.addWidget(heading)
         layout.addWidget(description)
         layout.addWidget(panel)
         layout.addWidget(self.settings_status)
         layout.addStretch()
+
         return page
 
     def save_monitoring_settings(self):
@@ -948,6 +974,40 @@ class FinAlertWindow(QMainWindow):
                 font-size: 9px;
                 font-weight: 750;
                 letter-spacing: 0.8px;
+            }
+
+            QLabel#SettingsEyebrow {
+                color: #167f72;
+                font-size: 10px;
+                font-weight: 750;
+                letter-spacing: 1.3px;
+            }
+            QFrame#SettingsPanel {
+                background: #ffffff;
+                border: 1px solid #e0e6ef;
+                border-radius: 14px;
+            }
+            QLabel#SettingsPanelTitle {
+                color: #19263a;
+                font-size: 14px;
+                font-weight: 700;
+            }
+            QLabel#SettingsRange {
+                background: #edf2f8;
+                color: #526277;
+                border-radius: 8px;
+                padding: 5px 9px;
+                font-size: 9px;
+                font-weight: 750;
+                letter-spacing: 0.8px;
+            }
+            QLabel#SettingsStatus {
+                background: #eaf7f3;
+                color: #267565;
+                border: 1px solid #d3eee6;
+                border-radius: 9px;
+                padding: 10px 12px;
+                font-size: 11px;
             }
 """
 
