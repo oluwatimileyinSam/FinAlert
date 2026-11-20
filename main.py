@@ -180,18 +180,69 @@ class FinAlertWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(20)
+        layout.setSpacing(18)
 
-        intro = QVBoxLayout()
-        heading = QLabel("Good to see you")
-        heading.setObjectName("SectionHeading")
+        hero = QFrame()
+        hero.setObjectName("DashboardHero")
+        hero_layout = QHBoxLayout(hero)
+        hero_layout.setContentsMargins(28, 24, 28, 24)
+        hero_layout.setSpacing(24)
+
+        introduction = QVBoxLayout()
+        introduction.setSpacing(11)
+
+        eyebrow = QLabel("FINALERT  /  MAILBOX INTELLIGENCE")
+        eyebrow.setObjectName("HeroEyebrow")
+
+        headline = QLabel("See the signal.\nStay ahead of the noise.")
+        headline.setObjectName("HeroTitle")
+
         description = QLabel(
-            "Review finance activity across your connected mailboxes."
+            "A focused view of financial activity across your connected mailboxes."
         )
-        description.setObjectName("SecondaryText")
-        intro.addWidget(heading)
-        intro.addWidget(description)
-        layout.addLayout(intro)
+        description.setObjectName("HeroCopy")
+        description.setWordWrap(True)
+
+        manage_button = QPushButton("Manage mailboxes  →")
+        manage_button.setObjectName("HeroButton")
+        manage_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        manage_button.clicked.connect(lambda: self.navigate(1))
+
+        introduction.addWidget(eyebrow)
+        introduction.addWidget(headline)
+        introduction.addWidget(description)
+        introduction.addSpacing(4)
+        introduction.addWidget(manage_button, 0, Qt.AlignmentFlag.AlignLeft)
+
+        signal_panel = QFrame()
+        signal_panel.setObjectName("HeroSignal")
+        signal_layout = QVBoxLayout(signal_panel)
+        signal_layout.setContentsMargins(20, 18, 20, 18)
+        signal_layout.setSpacing(7)
+
+        signal_label = QLabel("MONITORING FOCUS")
+        signal_label.setObjectName("SignalEyebrow")
+
+        signal_mark = QLabel("◉")
+        signal_mark.setObjectName("SignalMark")
+        signal_mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        signal_title = QLabel("Inbox + Sent Items")
+        signal_title.setObjectName("SignalTitle")
+        signal_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        signal_detail = QLabel("Initial discovery  ·  up to 60 days")
+        signal_detail.setObjectName("SignalDetail")
+        signal_detail.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        signal_layout.addWidget(signal_label)
+        signal_layout.addWidget(signal_mark, 1)
+        signal_layout.addWidget(signal_title)
+        signal_layout.addWidget(signal_detail)
+
+        hero_layout.addLayout(introduction, 3)
+        hero_layout.addWidget(signal_panel, 2)
+        layout.addWidget(hero)
 
         cards = QHBoxLayout()
         cards.setSpacing(14)
@@ -201,22 +252,38 @@ class FinAlertWindow(QMainWindow):
         self.overdue_value = QLabel("0")
         self.telegram_value = QLabel("Not configured")
 
-        cards.addWidget(self.make_stat_card("Connected accounts", self.accounts_value))
-        cards.addWidget(self.make_stat_card("Finance activity", self.activities_value))
-        cards.addWidget(self.make_stat_card("Overdue invoices", self.overdue_value))
-        cards.addWidget(self.make_stat_card("Telegram", self.telegram_value))
+        cards.addWidget(
+            self.make_stat_card("Connected mailboxes", self.accounts_value)
+        )
+        cards.addWidget(
+            self.make_stat_card("Finance activity", self.activities_value)
+        )
+        cards.addWidget(
+            self.make_stat_card("Overdue invoices", self.overdue_value)
+        )
+        cards.addWidget(
+            self.make_stat_card("Telegram", self.telegram_value)
+        )
         layout.addLayout(cards)
 
         section_header = QHBoxLayout()
-        recent_title = QLabel("Recent finance activity")
+        recent_title = QLabel("Activity stream")
         recent_title.setObjectName("SectionHeading")
+
+        section_caption = QLabel("RECENT FINANCIAL SIGNALS")
+        section_caption.setObjectName("ActivityCaption")
+
         section_header.addWidget(recent_title)
+        section_header.addSpacing(10)
+        section_header.addWidget(section_caption)
         section_header.addStretch()
 
-        view_all = QPushButton("View all")
+        view_all = QPushButton("View all  →")
         view_all.setObjectName("TextButton")
+        view_all.setCursor(Qt.CursorShape.PointingHandCursor)
         view_all.clicked.connect(lambda: self.navigate(3))
         section_header.addWidget(view_all)
+
         layout.addLayout(section_header)
 
         self.dashboard_table = self.make_activity_table()
@@ -654,7 +721,76 @@ class FinAlertWindow(QMainWindow):
             QPushButton#TextButton:hover {
                 background: #eaf1ff;
             }
-        """
+        
+            QFrame#DashboardHero {
+                background: #101a2e;
+                border: 1px solid #233550;
+                border-radius: 18px;
+            }
+            QLabel#HeroEyebrow, QLabel#SignalEyebrow {
+                color: #61e6c5;
+                font-size: 10px;
+                font-weight: 750;
+                letter-spacing: 1.4px;
+            }
+            QLabel#HeroTitle {
+                color: #f4f7fb;
+                font-size: 29px;
+                font-weight: 750;
+            }
+            QLabel#HeroCopy {
+                color: #b9c5d6;
+                font-size: 13px;
+            }
+            QFrame#HeroSignal {
+                background: #17243b;
+                border: 1px solid #2b405c;
+                border-radius: 15px;
+                min-width: 225px;
+            }
+            QLabel#SignalMark {
+                color: #61e6c5;
+                font-size: 53px;
+                font-weight: 400;
+            }
+            QLabel#SignalTitle {
+                color: #f4f7fb;
+                font-size: 15px;
+                font-weight: 700;
+            }
+            QLabel#SignalDetail {
+                color: #aab8cc;
+                font-size: 10px;
+            }
+            QLabel#ActivityCaption {
+                color: #8292a9;
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 1px;
+            }
+            QFrame#StatCard {
+                border-radius: 13px;
+                border-color: #e0e6ef;
+            }
+            QPushButton#HeroButton {
+                background: #61e6c5;
+                color: #0d1b2a;
+                border: 1px solid #61e6c5;
+                border-radius: 8px;
+                padding: 10px 15px;
+                font-weight: 700;
+            }
+            QPushButton#HeroButton:hover {
+                background: #83f0d4;
+                border-color: #83f0d4;
+            }
+            QPushButton#TextButton {
+                color: #167f72;
+            }
+            QPushButton#TextButton:hover {
+                background: #e5f7f3;
+            }
+"""
 
     def get_auth(self):
         if self.auth is None:
