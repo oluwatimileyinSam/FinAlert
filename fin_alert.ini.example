@@ -1,0 +1,11 @@
+[Microsoft]
+CLIENT_ID =
+AUTHORITY = https://login.microsoftonline.com/common
+
+[Telegram]
+CHAT_ID =
+INCLUDE_EMAIL_BODY = true
+BODY_LENGTH = 3000
+
+[Monitoring]
+CHECK_INTERVAL_SECONDS = 60
