@@ -3,6 +3,8 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $Requirements = Join-Path $ProjectRoot "requirements.txt"
 $Logo = Join-Path $ProjectRoot "assets\fin_alert_logo.svg"
+$Icon = Join-Path $ProjectRoot "assets\FinAlert.ico"
+$IconScript = Join-Path $PSScriptRoot "create_icon.py"
 $PackagingRoot = Join-Path $env:LOCALAPPDATA "FinAlert\packaging"
 $Venv = Join-Path $PackagingRoot "venv"
 $Python = Join-Path $Venv "Scripts\python.exe"
@@ -17,6 +19,10 @@ if (-not (Test-Path -LiteralPath $Requirements -PathType Leaf)) {
 
 if (-not (Test-Path -LiteralPath $Logo -PathType Leaf)) {
     throw "The FinAlert logo SVG was not found at: $Logo"
+}
+
+if (-not (Test-Path -LiteralPath $IconScript -PathType Leaf)) {
+    throw "The Windows icon converter was not found at: $IconScript"
 }
 
 if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) {
@@ -50,9 +56,18 @@ if ($LASTEXITCODE -ne 0) {
     throw "Could not install the project requirements."
 }
 
-& $Python -m pip install pyinstaller
+& $Python -m pip install pyinstaller Pillow
 if ($LASTEXITCODE -ne 0) {
-    throw "Could not install PyInstaller."
+    throw "Could not install PyInstaller and Pillow."
+}
+
+& $Python $IconScript
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not create the Windows app icon."
+}
+
+if (-not (Test-Path -LiteralPath $Icon -PathType Leaf)) {
+    throw "The Windows icon was not created: $Icon"
 }
 
 Push-Location $ProjectRoot
@@ -63,6 +78,7 @@ try {
         --windowed `
         --onedir `
         --name FinAlert `
+        --icon $Icon `
         --hidden-import keyring.backends.Windows `
         --distpath $DistRoot `
         --workpath $WorkRoot `
