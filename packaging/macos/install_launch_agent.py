@@ -14,10 +14,20 @@ def main():
         return 1
 
     project_root = Path(__file__).resolve().parents[2]
-    python_path = project_root / ".venv" / "bin" / "python"
+    app_bundles = [
+        Path("/Applications/FinAlert.app"),
+        Path.home() / "Applications" / "FinAlert.app",
+        project_root / "dist" / "FinAlert.app",
+    ]
+    app_bundle = next((path for path in app_bundles if path.is_dir()), None)
 
-    if not python_path.is_file():
-        print(f"Virtual environment Python not found: {python_path}")
+    if app_bundle is None:
+        print("FinAlert.app was not found. Build it or place it in Applications.")
+        return 1
+
+    app_executable = app_bundle / "Contents" / "MacOS" / "FinAlert"
+    if not app_executable.is_file():
+        print(f"FinAlert executable not found: {app_executable}")
         return 1
 
     launch_agents = Path.home() / "Library" / "LaunchAgents"
@@ -30,19 +40,15 @@ def main():
     job = {
         "Label": LABEL,
         "ProgramArguments": [
-            str(python_path),
-            "-m",
-            "email_monitor.background_runner",
+            str(app_executable),
+            "--background",
         ],
-        "WorkingDirectory": str(project_root),
+        "WorkingDirectory": str(app_data),
         "RunAtLoad": True,
         "KeepAlive": True,
         "ThrottleInterval": 30,
         "StandardOutPath": str(app_data / "launchd.stdout.log"),
         "StandardErrorPath": str(app_data / "launchd.stderr.log"),
-        "EnvironmentVariables": {
-            "PYTHONUNBUFFERED": "1",
-        },
     }
 
     plist_path.write_bytes(plistlib.dumps(job))
@@ -64,6 +70,7 @@ def main():
     )
 
     print(f"Installed and started the FinAlert background agent: {plist_path}")
+    print(f"Using app bundle: {app_bundle}")
     return 0
 
 
