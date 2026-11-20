@@ -440,20 +440,47 @@ class FinAlertWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(16)
+        layout.setSpacing(14)
+
+        eyebrow = QLabel("MAILBOX SIGNAL  /  CLASSIFIED ACTIVITY")
+        eyebrow.setObjectName("FinanceEyebrow")
 
         heading = QLabel("Finance activity")
         heading.setObjectName("SectionHeading")
+
         description = QLabel(
-            "Classified messages from Inbox and Sent Items."
+            "Review transaction-related messages found across Inbox and Sent Items."
         )
         description.setObjectName("SecondaryText")
+        description.setWordWrap(True)
+
+        panel = QFrame()
+        panel.setObjectName("FinancePanel")
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(18, 16, 18, 18)
+        panel_layout.setSpacing(12)
+
+        panel_header = QHBoxLayout()
+        panel_title = QLabel("Detected activity")
+        panel_title.setObjectName("FinancePanelTitle")
+
+        folders_label = QLabel("INBOX  +  SENT ITEMS")
+        folders_label.setObjectName("FinanceFolders")
+
+        panel_header.addWidget(panel_title)
+        panel_header.addStretch()
+        panel_header.addWidget(folders_label)
 
         self.finance_table = self.make_activity_table()
 
+        panel_layout.addLayout(panel_header)
+        panel_layout.addWidget(self.finance_table, 1)
+
+        layout.addWidget(eyebrow)
         layout.addWidget(heading)
         layout.addWidget(description)
-        layout.addWidget(self.finance_table, 1)
+        layout.addWidget(panel, 1)
+
         return page
 
     def make_settings_page(self):
@@ -895,6 +922,32 @@ class FinAlertWindow(QMainWindow):
                 border-radius: 8px;
                 padding: 9px 11px;
                 font-size: 11px;
+            }
+
+            QLabel#FinanceEyebrow {
+                color: #167f72;
+                font-size: 10px;
+                font-weight: 750;
+                letter-spacing: 1.3px;
+            }
+            QFrame#FinancePanel {
+                background: #ffffff;
+                border: 1px solid #e0e6ef;
+                border-radius: 14px;
+            }
+            QLabel#FinancePanelTitle {
+                color: #19263a;
+                font-size: 14px;
+                font-weight: 700;
+            }
+            QLabel#FinanceFolders {
+                background: #edf2f8;
+                color: #526277;
+                border-radius: 8px;
+                padding: 5px 9px;
+                font-size: 9px;
+                font-weight: 750;
+                letter-spacing: 0.8px;
             }
 """
 
