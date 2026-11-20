@@ -92,9 +92,19 @@ class NotificationService:
                         result["pdfs_skipped"] += 1
                         continue
 
+                    subject = (
+                        classification.get("subject")
+                        or message.get("subject")
+                        or "(No subject)"
+                    )
+                    document_caption = (
+                        f"Mailbox: {account_label or 'Unknown mailbox'}"
+                        f" | Subject: {subject}"
+                    )
                     self.telegram.send_document(
                         attachment.get("name"),
                         attachment.get("content"),
+                        caption=document_caption,
                     )
                     result["pdfs_sent"] += 1
             except TelegramError:
