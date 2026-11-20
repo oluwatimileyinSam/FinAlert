@@ -1,6 +1,7 @@
+import configparser
 import logging
-import os
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -21,6 +22,7 @@ from authentication.microsoft import AuthenticationError, MicrosoftAuth
 
 
 logging.basicConfig(level=logging.INFO)
+CONFIG_PATH = Path(__file__).resolve().parent / "fin_alert.ini"
 
 
 class FinAlertWindow(QMainWindow):
@@ -111,12 +113,27 @@ class FinAlertWindow(QMainWindow):
 
     def get_auth(self):
         if self.auth is None:
-            client_id = os.environ.get("FIN_ALERT_CLIENT_ID", "").strip()
+            config = configparser.ConfigParser()
+            config.read(CONFIG_PATH, encoding="utf-8")
+
+            client_id = config.get(
+                "Microsoft",
+                "CLIENT_ID",
+                fallback="",
+            ).strip()
+            authority = config.get(
+                "Microsoft",
+                "AUTHORITY",
+                fallback="https://login.microsoftonline.com/common",
+            ).strip()
+
             if not client_id:
                 raise AuthenticationError(
-                    "The Microsoft app client ID is not configured yet."
+                    "Set CLIENT_ID in fin_alert.ini before connecting an account."
                 )
-            self.auth = MicrosoftAuth(client_id)
+
+            self.auth = MicrosoftAuth(client_id, authority)
+
         return self.auth
 
     def connect_account(self):
