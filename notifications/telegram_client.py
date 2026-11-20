@@ -9,6 +9,7 @@ KEYRING_USERNAME = "BotToken"
 TELEGRAM_API = "https://api.telegram.org"
 BOT_TOKEN_RE = re.compile(r"^\d{5,}:[A-Za-z0-9_-]{20,}$")
 MAX_MESSAGE_LENGTH = 4096
+MAX_DOCUMENT_BYTES = 50 * 1024 * 1024
 
 
 class TelegramError(Exception):
@@ -140,6 +141,68 @@ class TelegramClient:
                 "disable_web_page_preview": True,
             },
         )
+
+    def send_document(self, filename, content):
+        """Upload one PDF document to the configured Telegram chat."""
+        if self.chat_id is None:
+            raise TelegramError("Set a Telegram destination before sending.")
+
+        if not isinstance(content, (bytes, bytearray)) or not content:
+            raise TelegramError("The PDF attachment has no readable content.")
+
+        content = bytes(content)
+        if len(content) > MAX_DOCUMENT_BYTES:
+            raise TelegramError(
+                "The PDF is larger than Telegram's 50 MB document limit."
+            )
+
+        safe_name = str(filename or "attachment.pdf")
+        safe_name = safe_name.replace("\\", "/").rsplit("/", 1)[-1].strip()
+        safe_name = "".join(char for char in safe_name if char.isprintable())
+        if not safe_name:
+            safe_name = "attachment.pdf"
+        if not safe_name.casefold().endswith(".pdf"):
+            safe_name += ".pdf"
+
+        url = f"{TELEGRAM_API}/bot{self.bot_token}/sendDocument"
+
+        try:
+            response = self.session.post(
+                url,
+                data={"chat_id": self.chat_id},
+                files={
+                    "document": (
+                        safe_name,
+                        content,
+                        "application/pdf",
+                    ),
+                },
+                timeout=self.timeout,
+                allow_redirects=False,
+            )
+        except requests.RequestException:
+            raise TelegramError(
+                "Could not connect to Telegram to send the PDF."
+            ) from None
+
+        if response.status_code != 200:
+            raise TelegramError(
+                f"Telegram returned HTTP {response.status_code} for the PDF."
+            )
+
+        try:
+            result = response.json()
+        except ValueError:
+            raise TelegramError(
+                "Telegram returned an unreadable response for the PDF."
+            ) from None
+
+        if not isinstance(result, dict) or not result.get("ok"):
+            raise TelegramError(
+                "Telegram rejected the PDF upload. Check the bot and chat settings."
+            )
+
+        return result.get("result")
 
     def _request(self, method, payload):
         url = f"{TELEGRAM_API}/bot{self.bot_token}/{method}"
