@@ -42,6 +42,8 @@ class NotificationService:
             "sent": 0,
             "skipped": 0,
             "failed": 0,
+            "pdfs_sent": 0,
+            "pdfs_skipped": 0,
         }
 
         for activity in activities:
@@ -77,6 +79,24 @@ class NotificationService:
                     account_label=account_label,
                 )
                 self.telegram.send_message(text)
+
+                for attachment in activity.get("pdf_attachments", []):
+                    if attachment.get("too_large"):
+                        filename = str(
+                            attachment.get("name") or "attachment.pdf"
+                        )[:300]
+                        self.telegram.send_message(
+                            "PDF not sent because it exceeds Telegram's "
+                            f"50 MB limit: {filename}"
+                        )
+                        result["pdfs_skipped"] += 1
+                        continue
+
+                    self.telegram.send_document(
+                        attachment.get("name"),
+                        attachment.get("content"),
+                    )
+                    result["pdfs_sent"] += 1
             except TelegramError:
                 self.database.record_notification(
                     account_id,
