@@ -10,7 +10,7 @@ $AppExecutable = Join-Path $MsiDirectory "FinAlert\FinAlert.exe"
 
 $WixCommand = Get-Command wix.exe -ErrorAction SilentlyContinue
 if (-not $WixCommand) {
-    throw "WiX 7 is required. Install the WiX 7 .NET tool, then run this script again."
+    throw "WiX 7.0.1 is required. Install the .NET SDK, then run: dotnet tool install --global wix --version 7.0.1"
 }
 
 $WixVersion = (& $WixCommand.Source --version | Select-Object -First 1).Trim()
@@ -19,7 +19,7 @@ if (-not $WixVersion.StartsWith("7.0.1")) {
 }
 
 if (-not (Test-Path -LiteralPath $EulaAcceptance -PathType Leaf)) {
-    throw "Review the WiX OSMF terms, then accept them manually with: wix eula accept wix7"
+    throw "Review https://docs.firegiant.com/wix/osmf/, then accept the WiX terms manually with: wix eula accept wix7"
 }
 
 if (-not (Test-Path -LiteralPath $WxsFile -PathType Leaf)) {
@@ -36,7 +36,7 @@ try {
         throw "The Windows app build did not produce FinAlert.exe."
     }
 
-    & $WixCommand.Source extension add WixToolset.Util.wixext/7.0.1
+    & $WixCommand.Source extension add --global WixToolset.Util.wixext/7.0.1
     if ($LASTEXITCODE -ne 0) {
         throw "Could not install the WiX Util extension."
     }
