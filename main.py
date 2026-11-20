@@ -45,20 +45,35 @@ class FinAlertWindow(QMainWindow):
 
         self.pages = QStackedWidget()
         self.pages.addWidget(
-            self.make_page("Finance overview", "Connect a Microsoft account to get started.")
+            self.make_page(
+                "Finance overview",
+                "Connect a Microsoft account to get started.",
+            )
         )
         self.pages.addWidget(self.make_accounts_page())
         self.pages.addWidget(
-            self.make_page("Telegram", "Telegram settings will be added in a later step.")
+            self.make_page(
+                "Telegram",
+                "Telegram settings will be added in a later step.",
+            )
         )
         self.pages.addWidget(
-            self.make_page("Finance activity", "Detected activity will appear here.")
+            self.make_page(
+                "Finance activity",
+                "Detected activity will appear here.",
+            )
         )
         self.pages.addWidget(
-            self.make_page("Notification history", "Sent notifications will appear here.")
+            self.make_page(
+                "Notification history",
+                "Sent notifications will appear here.",
+            )
         )
         self.pages.addWidget(
-            self.make_page("Monitoring settings", "Monitoring controls will be added later.")
+            self.make_page(
+                "Monitoring settings",
+                "Monitoring controls will be added later.",
+            )
         )
 
         self.navigation.currentRowChanged.connect(self.pages.setCurrentIndex)
@@ -69,6 +84,8 @@ class FinAlertWindow(QMainWindow):
         layout.addWidget(self.navigation)
         layout.addWidget(self.pages, 1)
         self.setCentralWidget(content)
+
+        self.refresh_accounts()
 
     @staticmethod
     def make_page(title, message):
@@ -90,9 +107,12 @@ class FinAlertWindow(QMainWindow):
         heading = QLabel("Microsoft accounts")
         heading.setStyleSheet("font-size: 26px; font-weight: 600;")
         layout.addWidget(heading)
-        layout.addWidget(QLabel(
-            "Connect mailboxes independently. FinAlert requests read-only access."
-        ))
+        layout.addWidget(
+            QLabel(
+                "Connect mailboxes independently. "
+                "FinAlert requests read-only access."
+            )
+        )
 
         self.account_list = QListWidget()
         layout.addWidget(self.account_list, 1)
@@ -157,6 +177,7 @@ class FinAlertWindow(QMainWindow):
 
     def refresh_accounts(self):
         self.account_list.clear()
+
         try:
             accounts = self.get_auth().accounts()
         except AuthenticationError:
@@ -165,7 +186,10 @@ class FinAlertWindow(QMainWindow):
         for account in accounts:
             username = account.get("username", "Microsoft account")
             item = QListWidgetItem(f"{username} — Connected")
-            item.setData(Qt.ItemDataRole.UserRole, account.get("home_account_id"))
+            item.setData(
+                Qt.ItemDataRole.UserRole,
+                account.get("home_account_id"),
+            )
             self.account_list.addItem(item)
 
     def disconnect_account(self):
