@@ -107,3 +107,47 @@ def scan_interval_seconds(default=60):
         return default
 
     return interval
+
+def save_scan_interval_seconds(seconds):
+    """Save the scan interval to .env without replacing other settings."""
+    try:
+        interval = int(seconds)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("The scan interval must be a whole number.") from exc
+
+    if not 15 <= interval <= 3600:
+        raise ValueError("The scan interval must be between 15 and 3600 seconds.")
+
+    key = "FINALERT_SCAN_INTERVAL_SECONDS"
+    try:
+        lines = ENV_PATH.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        lines = []
+
+    updated = False
+    for index, line in enumerate(lines):
+        setting = line.strip()
+        if setting.startswith("export "):
+            setting = setting[len("export "):].strip()
+
+        existing_key, separator, _value = setting.partition("=")
+        if separator and existing_key.strip() == key:
+            lines[index] = f"{key}={interval}"
+            updated = True
+            break
+
+    if not updated:
+        lines.append(f"{key}={interval}")
+
+    ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = ENV_PATH.with_name(f".{ENV_PATH.name}.tmp")
+    temporary_path.write_text(
+        "\n".join(lines).rstrip() + "\n",
+        encoding="utf-8",
+    )
+
+    if os.name != "nt":
+        temporary_path.chmod(0o600)
+
+    os.replace(temporary_path, ENV_PATH)
+\n
