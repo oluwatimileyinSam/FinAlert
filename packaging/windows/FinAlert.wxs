@@ -9,7 +9,7 @@
     Platform="x64">
 
     <MajorUpgrade
-      Schedule="afterInstallValidate"
+      Schedule="afterInstallInitialize"
       DowngradeErrorMessage="A newer version of FinAlert is already installed." />
 
     <MediaTemplate EmbedCab="yes" />
