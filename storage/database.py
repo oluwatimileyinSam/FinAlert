@@ -278,8 +278,31 @@ class FinanceDatabase:
 
         return dict(row) if row else None
 
-    def save_sync_state(self, account_id, folder, delta_link=None):
-        now = datetime.now(timezone.utc).isoformat()
+    def save_sync_state(
+        self,
+        account_id,
+        folder,
+        delta_link=None,
+        last_sync_at=None,
+    ):
+        if last_sync_at is None:
+            sync_time = datetime.now(timezone.utc)
+        elif isinstance(last_sync_at, datetime):
+            sync_time = last_sync_at
+        else:
+            try:
+                sync_time = datetime.fromisoformat(
+                    str(last_sync_at).replace("Z", "+00:00")
+                )
+            except ValueError as exc:
+                raise ValueError("Invalid last-sync timestamp.") from exc
+
+        if sync_time.tzinfo is None:
+            sync_time = sync_time.replace(tzinfo=timezone.utc)
+        else:
+            sync_time = sync_time.astimezone(timezone.utc)
+
+        sync_time_text = sync_time.isoformat()
 
         with self._connect() as connection:
             connection.execute(
@@ -296,5 +319,5 @@ class FinanceDatabase:
                     delta_link = excluded.delta_link,
                     last_sync_at = excluded.last_sync_at
                 """,
-                (account_id, folder, delta_link, now),
+                (account_id, folder, delta_link, sync_time_text),
             )
