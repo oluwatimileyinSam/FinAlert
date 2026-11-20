@@ -21,6 +21,7 @@ mkdir -p "$PROJECT_ROOT/build/specs"
     --distpath "$PROJECT_ROOT/dist" \
     --workpath "$PROJECT_ROOT/build/pyinstaller" \
     --specpath "$PROJECT_ROOT/build/specs" \
+    --add-data "$PROJECT_ROOT/assets/fin_alert_logo.svg:assets" \
     "$PROJECT_ROOT/main.py"
 
 APP_PATH="$PROJECT_ROOT/dist/FinAlert.app"
