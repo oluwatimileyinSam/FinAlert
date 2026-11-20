@@ -116,7 +116,7 @@ class FinAlertWindow(QMainWindow):
         brand_text = QVBoxLayout()
         brand_name = QLabel("FinAlert")
         brand_name.setObjectName("BrandName")
-        brand_subtitle = QLabel("FINANCE MONITORING")
+        brand_subtitle = QLabel("BY PERENNIS FONS")
         brand_subtitle.setObjectName("BrandSubtitle")
         brand_text.addWidget(brand_name)
         brand_text.addWidget(brand_subtitle)
