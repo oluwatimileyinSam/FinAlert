@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from app_config import CONFIG_PATH, microsoft_settings
+from license_dialog import ensure_license
 from authentication.microsoft import AuthenticationError, MicrosoftAuth
 from email_monitor.pipeline import FinanceScanner, default_database_path
 from notifications.service import NotificationService
@@ -776,6 +777,8 @@ def main():
         return background_main()
 
     application = QApplication(sys.argv)
+    if not ensure_license():
+        return 0
     application.setStyle("Fusion")
 
     window = FinAlertWindow()
