@@ -69,12 +69,7 @@ class FinAlertWindow(QMainWindow):
         self.telegram_settings = TelegramSettingsWidget(CONFIG_PATH)
         self.pages.addWidget(self.telegram_settings)
         self.pages.addWidget(self.make_finance_page())
-        self.pages.addWidget(
-            self.make_placeholder_page(
-                "Notification history",
-                "Telegram delivery history will appear here.",
-            )
-        )
+        self.pages.addWidget(self.make_notification_history_page())
         self.pages.addWidget(
             self.make_placeholder_page(
                 "Monitoring settings",
@@ -102,6 +97,7 @@ class FinAlertWindow(QMainWindow):
         self.navigate(0)
         self.refresh_accounts()
         self.refresh_finance_activity()
+        self.refresh_notification_history()
 
     def make_sidebar(self):
         sidebar = QFrame()
@@ -266,6 +262,55 @@ class FinAlertWindow(QMainWindow):
         buttons.addStretch()
         layout.addLayout(buttons)
 
+        return page
+
+    def make_notification_history_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+
+        heading = QLabel("Notification history")
+        heading.setObjectName("SectionHeading")
+
+        description = QLabel(
+            "Recent Telegram alerts, grouped with the mailbox and email "
+            "they came from."
+        )
+        description.setObjectName("SecondaryText")
+
+        self.notification_summary = QLabel("No notification history yet.")
+        self.notification_summary.setObjectName("SecondaryText")
+
+        self.notification_table = QTableWidget(0, 6)
+        self.notification_table.setHorizontalHeaderLabels([
+            "Mailbox",
+            "Direction",
+            "Status",
+            "Category",
+            "Subject",
+            "Attempted",
+        ])
+        self.notification_table.setObjectName("ActivityTable")
+        self.notification_table.setEditTriggers(
+            QTableWidget.EditTrigger.NoEditTriggers
+        )
+        self.notification_table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
+        self.notification_table.setSelectionMode(
+            QTableWidget.SelectionMode.SingleSelection
+        )
+        self.notification_table.setAlternatingRowColors(True)
+        self.notification_table.verticalHeader().setVisible(False)
+        self.notification_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+
+        layout.addWidget(heading)
+        layout.addWidget(description)
+        layout.addWidget(self.notification_summary)
+        layout.addWidget(self.notification_table, 1)
         return page
 
     def make_finance_page(self):
@@ -674,6 +719,8 @@ class FinAlertWindow(QMainWindow):
             else:
                 telegram_status = "\nTelegram alerts: No finance emails found."
 
+            self.refresh_notification_history()
+
             dialog_title = (
                 "60-day scan complete"
                 if initial_history
@@ -738,6 +785,57 @@ class FinAlertWindow(QMainWindow):
         self.activities_value.setText(str(len(records)))
         self.overdue_value.setText(str(overdue_count))
         self.refresh_dashboard()
+
+    def refresh_notification_history(self):
+        records = self.database.list_notification_history(limit=100)
+
+        mailbox_names = {}
+        try:
+            for account in self.get_auth().accounts():
+                mailbox_names[FinanceScanner._get_account_id(account)] = (
+                    account.get("username") or "Microsoft account"
+                )
+        except AuthenticationError:
+            pass
+
+        self.notification_table.setRowCount(0)
+        if records:
+            self.notification_summary.setText(
+                f"Showing {len(records)} recent notification attempts."
+            )
+        else:
+            self.notification_summary.setText("No notification history yet.")
+
+        for record in records:
+            row_index = self.notification_table.rowCount()
+            self.notification_table.insertRow(row_index)
+
+            folder = record.get("folder")
+            if folder == "Sent Items":
+                direction = "Sent"
+            elif folder == "Inbox":
+                direction = "Received"
+            else:
+                direction = folder or "Unknown"
+
+            values = [
+                mailbox_names.get(
+                    record.get("account_id"),
+                    "Disconnected account",
+                ),
+                direction,
+                (record.get("status") or "unknown").capitalize(),
+                record.get("finance_category") or "Finance-related",
+                record.get("subject") or "(No subject)",
+                record.get("attempted_at") or "",
+            ]
+
+            for column, value in enumerate(values):
+                self.notification_table.setItem(
+                    row_index,
+                    column,
+                    QTableWidgetItem(str(value)),
+                )
 
     @staticmethod
     def populate_activity_table(table, records):
