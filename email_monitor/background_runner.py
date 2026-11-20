@@ -68,6 +68,7 @@ def scan_accounts(authentication, scanner, notifications):
                 delivery = notifications.send_activities(
                     result["account_id"],
                     activities,
+                    account_label=account.get("username"),
                 )
                 LOGGER.info(
                     "Scan complete: %s messages, %s finance matches, "
