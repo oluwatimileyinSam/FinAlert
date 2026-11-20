@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QInputDialog,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
@@ -28,7 +29,7 @@ class TelegramSettingsWidget(QWidget):
         self.token_input.setPlaceholderText("Paste the token from BotFather")
 
         self.chat_id_input = QLineEdit()
-        self.chat_id_input.setPlaceholderText("Telegram chat ID or @channel")
+        self.chat_id_input.setPlaceholderText("Choose a discovered chat or enter its ID")
 
         self.include_body = QCheckBox("Include email body excerpt in alerts")
         self.body_length = QSpinBox()
@@ -54,7 +55,8 @@ class TelegramSettingsWidget(QWidget):
         description = QLabel(
             "Configure where FinAlert sends notifications. The bot token is "
             "saved in the operating system credential store, not in the "
-            "configuration file."
+            "configuration file. Start a conversation with your bot before "
+            "finding its chat ID."
         )
         description.setObjectName("SecondaryText")
         description.setWordWrap(True)
@@ -73,7 +75,19 @@ class TelegramSettingsWidget(QWidget):
         form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
         form.setSpacing(12)
         form.addRow("Bot token", self.token_input)
-        form.addRow("Destination", self.chat_id_input)
+
+        destination_row = QWidget()
+        destination_layout = QHBoxLayout(destination_row)
+        destination_layout.setContentsMargins(0, 0, 0, 0)
+        destination_layout.setSpacing(8)
+
+        destination_layout.addWidget(self.chat_id_input, 1)
+        find_chat_button = QPushButton("Find chat ID")
+        find_chat_button.setObjectName("SecondaryButton")
+        find_chat_button.clicked.connect(self.find_chat_id)
+        destination_layout.addWidget(find_chat_button)
+
+        form.addRow("Destination", destination_row)
         form.addRow("Email content", self.include_body)
 
         body_row = QHBoxLayout()
@@ -149,21 +163,13 @@ class TelegramSettingsWidget(QWidget):
         if not config.has_section("Telegram"):
             config.add_section("Telegram")
 
-        config.set(
-            "Telegram",
-            "CHAT_ID",
-            self.chat_id_input.text().strip(),
-        )
+        config.set("Telegram", "CHAT_ID", self.chat_id_input.text().strip())
         config.set(
             "Telegram",
             "INCLUDE_EMAIL_BODY",
             str(self.include_body.isChecked()).lower(),
         )
-        config.set(
-            "Telegram",
-            "BODY_LENGTH",
-            str(self.body_length.value()),
-        )
+        config.set("Telegram", "BODY_LENGTH", str(self.body_length.value()))
 
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         with self.config_path.open("w", encoding="utf-8") as config_file:
@@ -171,7 +177,8 @@ class TelegramSettingsWidget(QWidget):
 
     def _make_client(self):
         self._save_settings()
-        return TelegramClient(self.chat_id_input.text().strip())
+        chat_id = self.chat_id_input.text().strip() or None
+        return TelegramClient(chat_id)
 
     def save_settings(self):
         try:
@@ -189,6 +196,43 @@ class TelegramSettingsWidget(QWidget):
             bot = self._make_client().test_connection()
             bot_name = bot.get("username") or bot.get("first_name") or "Telegram bot"
             self.status.setText(f"Connected to @{bot_name}.")
+        except TelegramError as exc:
+            self.status.setText(str(exc))
+        except OSError:
+            self.status.setText("FinAlert could not write the local settings file.")
+
+    def find_chat_id(self):
+        try:
+            chats = self._make_client().get_recent_chats()
+            if not chats:
+                self.status.setText(
+                    "No chat found. Open your bot in Telegram, press Start, "
+                    "send /start, then try again."
+                )
+                return
+
+            choices = [
+                f"{chat['name']} ({chat['type']}) — {chat['id']}"
+                for chat in chats
+            ]
+            selected, accepted = QInputDialog.getItem(
+                self,
+                "Choose Telegram destination",
+                "Chat:",
+                choices,
+                0,
+                False,
+            )
+
+            if not accepted:
+                return
+
+            selected_index = choices.index(selected)
+            chat_id = chats[selected_index]["id"]
+            self.chat_id_input.setText(chat_id)
+            self._save_settings()
+            self.status.setText("Telegram destination saved.")
+
         except TelegramError as exc:
             self.status.setText(str(exc))
         except OSError:
