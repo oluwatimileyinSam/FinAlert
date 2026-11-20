@@ -32,6 +32,35 @@ from notifications.telegram_settings import TelegramSettingsWidget
 
 logging.basicConfig(level=logging.INFO)
 CONFIG_PATH = Path(__file__).resolve().parent / "fin_alert.ini"
+ENV_PATH = Path(__file__).resolve().parent / ".env"
+
+
+def load_local_env(path):
+    """Read simple KEY=value settings from the local .env file."""
+    values = {}
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return values
+
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].strip()
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+
+        if key:
+            values[key] = value
+
+    return values
 
 NAVIGATION_ITEMS = [
     ("Dashboard", "Overview"),
@@ -535,12 +564,13 @@ class FinAlertWindow(QMainWindow):
             config = configparser.ConfigParser()
             config.read(CONFIG_PATH, encoding="utf-8")
 
-            client_id = config.get(
+            env_values = load_local_env(ENV_PATH)
+            client_id = env_values.get("MICROSOFT_CLIENT_ID") or config.get(
                 "Microsoft",
                 "CLIENT_ID",
                 fallback="",
             ).strip()
-            authority = config.get(
+            authority = env_values.get("MICROSOFT_AUTHORITY") or config.get(
                 "Microsoft",
                 "AUTHORITY",
                 fallback="https://login.microsoftonline.com/common",
