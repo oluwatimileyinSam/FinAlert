@@ -142,7 +142,7 @@ class TelegramClient:
             },
         )
 
-    def send_document(self, filename, content):
+    def send_document(self, filename, content, caption=None):
         """Upload one PDF document to the configured Telegram chat."""
         if self.chat_id is None:
             raise TelegramError("Set a Telegram destination before sending.")
@@ -165,11 +165,14 @@ class TelegramClient:
             safe_name += ".pdf"
 
         url = f"{TELEGRAM_API}/bot{self.bot_token}/sendDocument"
+        form_data = {"chat_id": self.chat_id}
+        if caption:
+            form_data["caption"] = str(caption)[:1024]
 
         try:
             response = self.session.post(
                 url,
-                data={"chat_id": self.chat_id},
+                data=form_data,
                 files={
                     "document": (
                         safe_name,
