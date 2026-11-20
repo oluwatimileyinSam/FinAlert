@@ -97,13 +97,39 @@ class MicrosoftAuth:
                 KEYRING_SERVICE,
                 self.keyring_username,
             )
-            if saved_cache:
-                self.cache.deserialize(saved_cache)
         except Exception as exc:
             LOGGER.exception("Could not read the protected Microsoft token cache")
             raise AuthenticationError(
                 "FinAlert could not access the saved sign-in cache."
             ) from exc
+
+        if saved_cache:
+            self.cache.deserialize(saved_cache)
+        elif self.keyring_username == PACKAGED_KEYRING_USERNAME:
+            try:
+                legacy_cache = keyring.get_password(
+                    KEYRING_SERVICE,
+                    KEYRING_USERNAME,
+                )
+            except Exception as exc:
+                LOGGER.exception("Could not read the existing Microsoft token cache")
+                raise AuthenticationError(
+                    "FinAlert could not access the existing sign-in cache."
+                ) from exc
+
+            if legacy_cache:
+                self.cache.deserialize(legacy_cache)
+                try:
+                    keyring.set_password(
+                        KEYRING_SERVICE,
+                        self.keyring_username,
+                        self.cache.serialize(),
+                    )
+                except Exception as exc:
+                    LOGGER.exception("Could not create the packaged Microsoft token cache")
+                    raise AuthenticationError(
+                        "FinAlert could not copy the sign-in cache for the packaged app."
+                    ) from exc
 
         self.client = msal.PublicClientApplication(
             client_id=client_id,
