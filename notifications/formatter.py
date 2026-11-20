@@ -77,6 +77,7 @@ def format_finance_notification(
     classification,
     include_body=True,
     body_length=3000,
+    account_label=None,
 ):
     """Build one plain-text Telegram notification without sending it."""
     category = classification.get("category") or "finance_related"
@@ -103,6 +104,8 @@ def format_finance_notification(
         f"Subject: {_clean_line(subject)}",
         f"Date: {_clean_line(email_date)}",
     ]
+    if account_label:
+        lines.insert(1, f"Mailbox: {_clean_line(account_label)}")
 
     invoice_number = classification.get("invoice_number")
     if invoice_number:
