@@ -1,0 +1,13 @@
+{
+  "name": "finalert-licensing-api",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-20",
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "finalert-licenses",
+      "database_id": "33fa98a4-0571-4928-adc7-b1671c69f49f"
+    }
+  ]
+}
