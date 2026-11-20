@@ -61,6 +61,7 @@ class FinanceScanner:
 
         return self._process_messages(
             account_id=account_id,
+            account=account,
             messages=messages,
             days_scanned=days,
             scan_started_at=scan_started_at,
@@ -95,6 +96,7 @@ class FinanceScanner:
 
         return self._process_messages(
             account_id=account_id,
+            account=account,
             messages=messages,
             days_scanned=0,
             scan_started_at=scan_started_at,
@@ -103,6 +105,7 @@ class FinanceScanner:
     def _process_messages(
         self,
         account_id,
+        account,
         messages,
         days_scanned,
         scan_started_at,
@@ -111,10 +114,17 @@ class FinanceScanner:
         for message in messages:
             classification = classify_message(message)
             if classification["is_finance_related"]:
-                activities.append({
+                activity = {
                     "message": message,
                     "classification": classification,
-                })
+                    "pdf_attachments": [],
+                }
+                message_id = message.get("id")
+                if message.get("hasAttachments") and message_id:
+                    activity["pdf_attachments"] = (
+                        self.graph.fetch_pdf_attachments(account, message_id)
+                    )
+                activities.append(activity)
 
         finance_messages = [item["message"] for item in activities]
         newly_recorded = self.database.save_messages(
