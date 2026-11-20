@@ -207,6 +207,43 @@ class FinanceDatabase:
             rows = connection.execute(query, parameters).fetchall()
             return [dict(row) for row in rows]
 
+    def list_notification_history(self, account_id=None, limit=100):
+        """Return recent notification attempts with their email details."""
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+
+        query = """
+            SELECT
+                n.account_id,
+                n.message_id,
+                n.channel,
+                n.status,
+                n.attempted_at,
+                n.sent_at,
+                n.error_code,
+                m.folder,
+                m.subject,
+                m.sender_name,
+                m.sender_address,
+                m.finance_category
+            FROM notification_history AS n
+            INNER JOIN messages AS m
+                ON m.account_id = n.account_id
+                AND m.message_id = n.message_id
+        """
+        parameters = []
+
+        if account_id:
+            query += " WHERE n.account_id = ?"
+            parameters.append(account_id)
+
+        query += " ORDER BY n.attempted_at DESC LIMIT ?"
+        parameters.append(limit)
+
+        with self._connect() as connection:
+            rows = connection.execute(query, parameters).fetchall()
+            return [dict(row) for row in rows]
+
     def notification_was_sent(self, account_id, message_id, channel):
         with self._connect() as connection:
             row = connection.execute(
