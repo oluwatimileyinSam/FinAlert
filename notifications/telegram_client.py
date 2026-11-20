@@ -16,8 +16,8 @@ class TelegramError(Exception):
 
 
 class TelegramClient:
-    def __init__(self, chat_id, bot_token=None, timeout=20):
-        self.chat_id = self._validate_chat_id(chat_id)
+    def __init__(self, chat_id=None, bot_token=None, timeout=20):
+        self.chat_id = self._validate_chat_id(chat_id, required=False)
         self.timeout = timeout
         self.session = requests.Session()
 
@@ -72,12 +72,18 @@ class TelegramClient:
             {
                 "limit": 100,
                 "timeout": 0,
-                "allowed_updates": ["message", "edited_message", "channel_post"],
+                "allowed_updates": [
+                    "message",
+                    "edited_message",
+                    "channel_post",
+                ],
             },
         )
 
         if not isinstance(updates, list):
-            raise TelegramError("Telegram returned an unexpected updates response.")
+            raise TelegramError(
+                "Telegram returned an unexpected updates response."
+            )
 
         chats = {}
         for update in updates:
@@ -115,6 +121,9 @@ class TelegramClient:
 
     def send_message(self, text):
         """Send one plain-text Telegram message to the configured chat."""
+        if self.chat_id is None:
+            raise TelegramError("Set a Telegram destination before sending.")
+
         if not isinstance(text, str) or not text.strip():
             raise TelegramError("The Telegram message cannot be empty.")
 
@@ -178,12 +187,19 @@ class TelegramClient:
         return token
 
     @staticmethod
-    def _validate_chat_id(chat_id):
+    def _validate_chat_id(chat_id, required=True):
         if chat_id is None:
-            raise TelegramError("Set CHAT_ID in fin_alert.ini.")
+            if required:
+                raise TelegramError("Set CHAT_ID in fin_alert.ini.")
+            return None
 
         value = str(chat_id).strip()
-        if not value or len(value) > 128 or any(char.isspace() for char in value):
+        if not value:
+            if required:
+                raise TelegramError("Set CHAT_ID in fin_alert.ini.")
+            return None
+
+        if len(value) > 128 or any(char.isspace() for char in value):
             raise TelegramError("The Telegram chat ID is invalid.")
 
         return value
