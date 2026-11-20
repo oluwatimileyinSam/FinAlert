@@ -771,6 +771,10 @@ class FinAlertWindow(QMainWindow):
 
 
 def main():
+    if "--background" in sys.argv[1:]:
+        from email_monitor.background_runner import main as background_main
+        return background_main()
+
     application = QApplication(sys.argv)
     application.setStyle("Fusion")
 
