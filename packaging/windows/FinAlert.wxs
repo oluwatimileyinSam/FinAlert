@@ -66,6 +66,21 @@
       Sequence="execute"
       Condition="NOT Installed" />
 
+    <SetProperty
+      Id="RollbackRegisterBackgroundTask"
+      Value="&quot;[SystemFolder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[#TaskRegistrationScript]&quot; -InstallDirectory &quot;[INSTALLFOLDER]&quot; -Uninstall"
+      Before="RollbackRegisterBackgroundTask"
+      Sequence="execute"
+      Condition="NOT Installed" />
+
+    <CustomAction
+      Id="RollbackRegisterBackgroundTask"
+      BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
+      DllEntry="WixQuietExec"
+      Execute="rollback"
+      Impersonate="yes"
+      Return="check" />
+
     <CustomAction
       Id="RegisterBackgroundTask"
       BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
@@ -81,6 +96,21 @@
       Sequence="execute"
       Condition="REMOVE=&quot;ALL&quot;" />
 
+    <SetProperty
+      Id="RollbackUnregisterBackgroundTask"
+      Value="&quot;[SystemFolder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[#TaskRegistrationScript]&quot; -InstallDirectory &quot;[INSTALLFOLDER]&quot;"
+      Before="RollbackUnregisterBackgroundTask"
+      Sequence="execute"
+      Condition="REMOVE=&quot;ALL&quot;" />
+
+    <CustomAction
+      Id="RollbackUnregisterBackgroundTask"
+      BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
+      DllEntry="WixQuietExec"
+      Execute="rollback"
+      Impersonate="yes"
+      Return="check" />
+
     <CustomAction
       Id="UnregisterBackgroundTask"
       BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
@@ -91,9 +121,17 @@
 
     <InstallExecuteSequence>
       <Custom
+        Action="RollbackRegisterBackgroundTask"
+        Before="RegisterBackgroundTask"
+        Condition="NOT Installed" />
+      <Custom
         Action="RegisterBackgroundTask"
         After="InstallFiles"
         Condition="NOT Installed" />
+      <Custom
+        Action="RollbackUnregisterBackgroundTask"
+        Before="UnregisterBackgroundTask"
+        Condition="REMOVE=&quot;ALL&quot;" />
       <Custom
         Action="UnregisterBackgroundTask"
         Before="RemoveFiles"
