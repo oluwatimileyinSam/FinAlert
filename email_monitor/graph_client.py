@@ -25,6 +25,11 @@ MESSAGE_FIELDS = ",".join([
     "hasAttachments",
 ])
 
+FOLDERS = [
+    ("inbox", "Inbox", "receivedDateTime"),
+    ("sentitems", "Sent Items", "sentDateTime"),
+]
+
 
 class GraphAPIError(Exception):
     """A Microsoft Graph request failed."""
@@ -57,7 +62,40 @@ class GraphMailClient:
             limit_per_folder=None,
         )
 
-    def _fetch_messages(self, account, days=None, limit_per_folder=None):
+    def fetch_messages_since(
+        self,
+        account,
+        since_by_folder,
+        overlap_seconds=300,
+    ):
+        """Read messages newer than each folder's last sync time."""
+        if not isinstance(since_by_folder, dict):
+            raise ValueError("since_by_folder must be a dictionary")
+
+        if not 0 <= overlap_seconds <= 86400:
+            raise ValueError("overlap_seconds must be between 0 and 86400")
+
+        for _folder_id, folder_label, _date_field in FOLDERS:
+            if not since_by_folder.get(folder_label):
+                raise ValueError(
+                    f"A last-sync timestamp is required for {folder_label}."
+                )
+
+        return self._fetch_messages(
+            account=account,
+            since_by_folder=since_by_folder,
+            overlap_seconds=overlap_seconds,
+            limit_per_folder=None,
+        )
+
+    def _fetch_messages(
+        self,
+        account,
+        days=None,
+        since_by_folder=None,
+        overlap_seconds=300,
+        limit_per_folder=None,
+    ):
         token_result = self.authentication.acquire_for(account)
         access_token = token_result.get("access_token")
         if not access_token:
@@ -70,29 +108,33 @@ class GraphMailClient:
         }
 
         messages = []
-        folders = [
-            ("inbox", "Inbox", "receivedDateTime"),
-            ("sentitems", "Sent Items", "sentDateTime"),
-        ]
-
-        cutoff = None
+        history_cutoff = None
         if days is not None:
-            cutoff = (
+            history_cutoff = self._format_utc(
                 datetime.now(timezone.utc) - timedelta(days=days)
-            ).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            )
 
-        for folder_id, folder_label, date_field in folders:
+        for folder_id, folder_label, date_field in FOLDERS:
             folder_url = (
                 f"{GRAPH_BASE_URL}/me/mailFolders/{folder_id}/messages"
             )
             params = {
                 "$top": min(limit_per_folder or PAGE_SIZE, PAGE_SIZE),
                 "$select": MESSAGE_FIELDS,
-                "$orderby": f"{date_field} desc",
             }
 
-            if cutoff:
+            if since_by_folder is not None:
+                cutoff = self._format_cutoff(
+                    since_by_folder[folder_label],
+                    overlap_seconds,
+                )
                 params["$filter"] = f"{date_field} ge {cutoff}"
+                params["$orderby"] = f"{date_field} desc"
+            elif history_cutoff:
+                params["$filter"] = f"{date_field} ge {history_cutoff}"
+                params["$orderby"] = f"{date_field} desc"
+            else:
+                params["$orderby"] = f"{date_field} desc"
 
             folder_messages = self._read_folder(
                 folder_url=folder_url,
@@ -122,7 +164,10 @@ class GraphMailClient:
                     allow_redirects=False,
                 )
             except requests.RequestException as exc:
-                LOGGER.warning("Microsoft Graph request failed for %s", folder_label)
+                LOGGER.warning(
+                    "Microsoft Graph request failed for %s",
+                    folder_label,
+                )
                 raise GraphAPIError(
                     f"Could not reach Microsoft Graph for {folder_label}."
                 ) from exc
@@ -162,6 +207,37 @@ class GraphMailClient:
             next_params = None
 
         return results
+
+    @staticmethod
+    def _format_cutoff(value, overlap_seconds):
+        if isinstance(value, datetime):
+            timestamp = value
+        elif isinstance(value, str):
+            try:
+                timestamp = datetime.fromisoformat(
+                    value.replace("Z", "+00:00")
+                )
+            except ValueError as exc:
+                raise ValueError("Invalid last-sync timestamp.") from exc
+        else:
+            raise ValueError("Invalid last-sync timestamp.")
+
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        else:
+            timestamp = timestamp.astimezone(timezone.utc)
+
+        timestamp -= timedelta(seconds=overlap_seconds)
+        return GraphMailClient._format_utc(timestamp)
+
+    @staticmethod
+    def _format_utc(value):
+        return (
+            value.astimezone(timezone.utc)
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
 
     @staticmethod
     def _validate_graph_url(url):
