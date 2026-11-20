@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -112,9 +113,20 @@ class FinAlertWindow(QMainWindow):
         layout.setSpacing(8)
 
         brand = QHBoxLayout()
-        brand_icon = QLabel("F")
+        brand_icon = QLabel()
         brand_icon.setObjectName("BrandIcon")
         brand_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        brand_icon.setFixedSize(42, 42)
+
+        logo_path = Path(__file__).resolve().parent / "assets" / "fin_alert_logo.svg"
+        logo_pixmap = QPixmap(str(logo_path))
+
+        if logo_pixmap.isNull():
+            brand_icon.setText("F")
+        else:
+            brand_icon.setPixmap(logo_pixmap)
+            brand_icon.setScaledContents(True)
+            brand_icon.setStyleSheet("background: white;")
 
         brand_text = QVBoxLayout()
         brand_name = QLabel("FinAlert")
