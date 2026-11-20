@@ -65,6 +65,50 @@ class TelegramClient:
                 "FinAlert could not remove the Telegram token."
             ) from None
 
+    def get_recent_chats(self):
+        """Find chat IDs from recent messages sent to the bot."""
+        updates = self._request(
+            "getUpdates",
+            {
+                "limit": 100,
+                "timeout": 0,
+                "allowed_updates": ["message", "edited_message", "channel_post"],
+            },
+        )
+
+        if not isinstance(updates, list):
+            raise TelegramError("Telegram returned an unexpected updates response.")
+
+        chats = {}
+        for update in updates:
+            message = (
+                update.get("message")
+                or update.get("edited_message")
+                or update.get("channel_post")
+            )
+            if not isinstance(message, dict):
+                continue
+
+            chat = message.get("chat")
+            if not isinstance(chat, dict) or chat.get("id") is None:
+                continue
+
+            chat_id = str(chat["id"])
+            display_name = (
+                chat.get("title")
+                or chat.get("username")
+                or chat.get("first_name")
+                or chat.get("type")
+                or "Telegram chat"
+            )
+            chats[chat_id] = {
+                "id": chat_id,
+                "name": display_name,
+                "type": chat.get("type", "unknown"),
+            }
+
+        return list(chats.values())
+
     def test_connection(self):
         """Check that the saved bot token is accepted by Telegram."""
         return self._request("getMe", {})
@@ -99,7 +143,6 @@ class TelegramClient:
                 allow_redirects=False,
             )
         except requests.RequestException:
-            # Avoid exposing the token, which is part of the request URL.
             raise TelegramError(
                 "Could not connect to Telegram. Check your internet connection."
             ) from None
