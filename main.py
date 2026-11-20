@@ -662,6 +662,7 @@ class FinAlertWindow(QMainWindow):
                     ).send_activities(
                         result["account_id"],
                         result["activities"],
+                        account_label=account.get("username"),
                     )
                     telegram_status = (
                         f"\nTelegram alerts: {notification_result['sent']} sent, "
