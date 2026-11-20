@@ -1,0 +1,87 @@
+name: Build Windows MSI
+
+on:
+  workflow_dispatch:
+    inputs:
+      accept_wix_osmf:
+        description: "I have read and accept the WiX v7 OSMF terms."
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Require explicit WiX terms acceptance
+        shell: pwsh
+        env:
+          ACCEPT_WIX_OSMF: ${{ inputs.accept_wix_osmf }}
+        run: |
+          if ($env:ACCEPT_WIX_OSMF -ne "true") {
+            throw "Read the WiX OSMF terms and accept them before starting this build."
+          }
+
+      - name: Check out FinAlert
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install WiX and accept its terms
+        shell: pwsh
+        run: |
+          $installedTools = & dotnet tool list --global
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not check the installed .NET tools."
+          }
+
+          $wixIsInstalled = $installedTools |
+            Where-Object { $_ -match '^\s*wix\s' }
+
+          if ($wixIsInstalled) {
+            & dotnet tool update --global wix --version 7.0.1
+          } else {
+            & dotnet tool install --global wix --version 7.0.1
+          }
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not install WiX 7.0.1."
+          }
+
+          $wixToolDirectory = Join-Path $env:USERPROFILE ".dotnet\tools"
+          Add-Content -Path $env:GITHUB_PATH -Value $wixToolDirectory
+
+          $wixExecutable = Join-Path $wixToolDirectory "wix.exe"
+          if (-not (Test-Path -LiteralPath $wixExecutable -PathType Leaf)) {
+            throw "The WiX executable was not found: $wixExecutable"
+          }
+
+          & $wixExecutable eula accept wix7
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not record WiX terms acceptance."
+          }
+
+      - name: Build FinAlert MSI
+        shell: pwsh
+        run: .\packaging\windows\build_msi.ps1
+
+      - name: Upload the MSI
+        uses: actions/upload-artifact@v7
+        with:
+          name: FinAlert-Windows-MSI
+          path: dist/windows/FinAlert-1.0.0-x64.msi
+          if-no-files-found: error
+          retention-days: 14
