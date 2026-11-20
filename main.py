@@ -295,40 +295,69 @@ class FinAlertWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(18)
+        layout.setSpacing(16)
+
+        eyebrow = QLabel("IDENTITY CONTROL")
+        eyebrow.setObjectName("AccountEyebrow")
 
         heading = QLabel("Connected mailboxes")
         heading.setObjectName("SectionHeading")
+
         description = QLabel(
-            "Each mailbox is authenticated separately. FinAlert requests "
-            "read-only mail access."
+            "Bring each Microsoft mailbox into one secure view. "
+            "FinAlert requests read-only access to your email."
         )
         description.setObjectName("SecondaryText")
-        layout.addWidget(heading)
-        layout.addWidget(description)
+        description.setWordWrap(True)
+
+        panel = QFrame()
+        panel.setObjectName("AccountPanel")
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(18, 16, 18, 16)
+        panel_layout.setSpacing(12)
+
+        panel_title = QLabel("Microsoft accounts")
+        panel_title.setObjectName("AccountPanelTitle")
+
+        panel_detail = QLabel(
+            "Select a mailbox to scan it or disconnect it from FinAlert."
+        )
+        panel_detail.setObjectName("SecondaryText")
 
         self.account_list = QListWidget()
         self.account_list.setObjectName("AccountList")
-        layout.addWidget(self.account_list, 1)
 
-        buttons = QHBoxLayout()
+        panel_layout.addWidget(panel_title)
+        panel_layout.addWidget(panel_detail)
+        panel_layout.addWidget(self.account_list, 1)
+
         connect_button = QPushButton("Connect Microsoft account")
         connect_button.setObjectName("PrimaryButton")
+        connect_button.setCursor(Qt.CursorShape.PointingHandCursor)
         connect_button.clicked.connect(self.connect_account)
 
         scan_button = QPushButton("Scan last 60 days")
         scan_button.setObjectName("SecondaryButton")
+        scan_button.setCursor(Qt.CursorShape.PointingHandCursor)
         scan_button.clicked.connect(self.scan_selected_account)
 
         disconnect_button = QPushButton("Disconnect")
         disconnect_button.setObjectName("SecondaryButton")
+        disconnect_button.setCursor(Qt.CursorShape.PointingHandCursor)
         disconnect_button.clicked.connect(self.disconnect_account)
 
-        buttons.addWidget(connect_button)
-        buttons.addWidget(scan_button)
-        buttons.addWidget(disconnect_button)
-        buttons.addStretch()
-        layout.addLayout(buttons)
+        actions = QHBoxLayout()
+        actions.setSpacing(10)
+        actions.addWidget(connect_button)
+        actions.addStretch()
+        actions.addWidget(scan_button)
+        actions.addWidget(disconnect_button)
+
+        layout.addWidget(eyebrow)
+        layout.addWidget(heading)
+        layout.addWidget(description)
+        layout.addWidget(panel, 1)
+        layout.addLayout(actions)
 
         return page
 
@@ -789,6 +818,23 @@ class FinAlertWindow(QMainWindow):
             }
             QPushButton#TextButton:hover {
                 background: #e5f7f3;
+            }
+
+            QLabel#AccountEyebrow {
+                color: #167f72;
+                font-size: 10px;
+                font-weight: 750;
+                letter-spacing: 1.3px;
+            }
+            QFrame#AccountPanel {
+                background: #ffffff;
+                border: 1px solid #e0e6ef;
+                border-radius: 14px;
+            }
+            QLabel#AccountPanelTitle {
+                color: #19263a;
+                font-size: 14px;
+                font-weight: 700;
             }
 """
 
