@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="FinAlert"
+    Manufacturer="Perennis Fons"
+    Version="1.0.0"
+    UpgradeCode="B8C45C3D-71A0-4E6A-9D6C-2B1D58C47F13"
+    Scope="perMachine"
+    Platform="x64">
+
+    <MajorUpgrade
+      Schedule="afterInstallValidate"
+      DowngradeErrorMessage="A newer version of FinAlert is already installed." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="FinAlert">
+        <Component Id="BackgroundTaskScript" Guid="*">
+          <File
+            Id="TaskRegistrationScript"
+            Source="packaging/windows/register_background_task.ps1"
+            KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="FinAlert" Level="1">
+      <Files
+        Include="..\..\dist\windows\FinAlert\**"
+        Directory="INSTALLFOLDER" />
+      <ComponentRef Id="BackgroundTaskScript" />
+    </Feature>
+
+    <SetProperty
+      Id="RegisterBackgroundTask"
+      Value="&quot;[SystemFolder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[#TaskRegistrationScript]&quot; -InstallDirectory &quot;[INSTALLFOLDER]&quot;"
+      Before="RegisterBackgroundTask"
+      Sequence="execute"
+      Condition="NOT Installed" />
+
+    <CustomAction
+      Id="RegisterBackgroundTask"
+      BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
+      DllEntry="WixQuietExec"
+      Execute="deferred"
+      Impersonate="yes"
+      Return="check" />
+
+    <SetProperty
+      Id="UnregisterBackgroundTask"
+      Value="&quot;[SystemFolder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[#TaskRegistrationScript]&quot; -InstallDirectory &quot;[INSTALLFOLDER]&quot; -Uninstall"
+      Before="UnregisterBackgroundTask"
+      Sequence="execute"
+      Condition="REMOVE=&quot;ALL&quot;" />
+
+    <CustomAction
+      Id="UnregisterBackgroundTask"
+      BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
+      DllEntry="WixQuietExec"
+      Execute="deferred"
+      Impersonate="yes"
+      Return="check" />
+
+    <InstallExecuteSequence>
+      <Custom
+        Action="RegisterBackgroundTask"
+        After="InstallFiles"
+        Condition="NOT Installed" />
+      <Custom
+        Action="UnregisterBackgroundTask"
+        Before="RemoveFiles"
+        Condition="REMOVE=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>
