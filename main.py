@@ -24,7 +24,11 @@ from PySide6.QtWidgets import (
 
 from app_config import CONFIG_PATH, microsoft_settings
 from authentication.microsoft import AuthenticationError, MicrosoftAuth
-from email_monitor.pipeline import FinanceScanner, default_database_path
+from email_monitor.pipeline import (
+    FinanceScanner,
+    SYNC_FOLDERS,
+    default_database_path,
+)
 from notifications.service import NotificationService
 from notifications.telegram_client import TelegramError
 from storage.database import FinanceDatabase
@@ -570,7 +574,15 @@ class FinAlertWindow(QMainWindow):
                 )
                 return
 
-            self.scan_account(account)
+            account_id = FinanceScanner._get_account_id(account)
+            has_previous_sync = all(
+                self.database.get_sync_state(account_id, folder)
+                for folder in SYNC_FOLDERS
+            )
+            self.scan_account(
+                account,
+                initial_history=not has_previous_sync,
+            )
 
         except AuthenticationError as exc:
             QMessageBox.warning(self, "Microsoft sign-in", str(exc))
@@ -616,13 +628,17 @@ class FinAlertWindow(QMainWindow):
         except AuthenticationError as exc:
             QMessageBox.warning(self, "Microsoft sign-in", str(exc))
 
-    def scan_account(self, account):
+    def scan_account(self, account, initial_history=True):
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            result = FinanceScanner(
+            scanner = FinanceScanner(
                 self.get_auth(),
                 self.database,
-            ).scan_initial_history(account, days=60)
+            )
+            if initial_history:
+                result = scanner.scan_initial_history(account, days=60)
+            else:
+                result = scanner.scan_since_last_sync(account)
 
             self.refresh_finance_activity()
 
@@ -645,9 +661,14 @@ class FinAlertWindow(QMainWindow):
             else:
                 telegram_status = "\nTelegram alerts: No finance emails found."
 
+            dialog_title = (
+                "60-day scan complete"
+                if initial_history
+                else "Mailbox scan complete"
+            )
             QMessageBox.information(
                 self,
-                "60-day scan complete",
+                dialog_title,
                 f"Messages scanned: {result['total_messages_scanned']}\n"
                 f"Finance messages found: {result['finance_messages_found']}\n"
                 f"New finance records saved: "
