@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from authentication.microsoft import AuthenticationError, MicrosoftAuth
 from email_monitor.pipeline import FinanceScanner, default_database_path
 from storage.database import FinanceDatabase
+from notifications.telegram_settings import TelegramSettingsWidget
 
 
 logging.basicConfig(level=logging.INFO)
@@ -58,12 +59,8 @@ class FinAlertWindow(QMainWindow):
 
         self.pages.addWidget(self.make_dashboard_page())
         self.pages.addWidget(self.make_accounts_page())
-        self.pages.addWidget(
-            self.make_placeholder_page(
-                "Telegram configuration",
-                "Connect a Telegram bot to receive finance activity alerts.",
-            )
-        )
+        self.telegram_settings = TelegramSettingsWidget(CONFIG_PATH)
+        self.pages.addWidget(self.telegram_settings)
         self.pages.addWidget(self.make_finance_page())
         self.pages.addWidget(
             self.make_placeholder_page(
