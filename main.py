@@ -444,6 +444,36 @@ class FinAlertWindow(QMainWindow):
                 font-size: 22px;
                 font-weight: 700;
             }
+            QLineEdit, QSpinBox {
+                background-color: #ffffff;
+                color: #1c2738;
+                border: 1px solid #cbd5e1;
+                border-radius: 6px;
+                padding: 8px 10px;
+                selection-background-color: #2f6fed;
+                selection-color: white;
+            }
+            QLineEdit:focus, QSpinBox:focus {
+                border: 1px solid #2f6fed;
+            }
+            QLineEdit::placeholder {
+                color: #7b8797;
+            }
+            QCheckBox {
+                color: #35445a;
+                spacing: 8px;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+                background: white;
+                border: 1px solid #aeb8c7;
+                border-radius: 4px;
+            }
+            QCheckBox::indicator:checked {
+                background: #2f6fed;
+                border-color: #2f6fed;
+            }
             QTableWidget#ActivityTable, QListWidget#AccountList {
                 background: white;
                 alternate-background-color: #f8fafd;
