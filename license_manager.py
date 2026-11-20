@@ -1,79 +1,280 @@
-import base64
-import binascii
 import json
-import re
-from datetime import datetime, timezone
+import os
+import secrets
+import sys
+import time
+import uuid
 
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+import requests
 
-
-PRODUCT_NAME = "FinAlert"
-PUBLIC_KEY_B64 = "BZJAOaC6q4bv74Jwhp8dIEoQPQUJh9YZCsAlVG6q6Is"
-
-
-class LicenseError(ValueError):
-    """A license key is invalid or expired."""
+from app_config import application_data_directory
 
 
-def _decode_segment(value, label):
-    if not value or re.fullmatch(r"[A-Za-z0-9_-]+", value) is None:
-        raise LicenseError(f"The license key has an invalid {label}.")
-
-    padded = value + ("=" * (-len(value) % 4))
-    try:
-        return base64.urlsafe_b64decode(padded)
-    except (ValueError, binascii.Error) as exc:
-        raise LicenseError(f"The license key has an invalid {label}.") from exc
+LICENSE_API_BASE_URL = "https://finalert-licensing-api.finalert.workers.dev"
+ONLINE_CHECK_INTERVAL = 24 * 60 * 60
+OFFLINE_GRACE_PERIOD = 7 * 24 * 60 * 60
+REQUEST_TIMEOUT = (5, 15)
 
 
-def verify_license_key(license_key):
-    """Verify a signed license and return its payload."""
-    parts = license_key.strip().split(".")
-    if len(parts) != 3 or parts[0] != "FINALERT1":
-        raise LicenseError("Enter a valid FinAlert license key.")
+class LicenseError(Exception):
+    def __init__(self, message, retryable=False, code=None):
+        super().__init__(message)
+        self.retryable = retryable
+        self.code = code
 
-    payload_bytes = _decode_segment(parts[1], "payload")
-    signature = _decode_segment(parts[2], "signature")
-    public_key_bytes = _decode_segment(PUBLIC_KEY_B64, "public key")
 
-    try:
-        public_key = Ed25519PublicKey.from_public_bytes(public_key_bytes)
-        public_key.verify(signature, payload_bytes)
-    except (InvalidSignature, ValueError) as exc:
-        raise LicenseError("This license key is not valid.") from exc
+class LicenseManager:
+    def __init__(self):
+        self.data_directory = application_data_directory()
+        self.device_id_path = self.data_directory / "license_device_id"
+        self.license_path = self.data_directory / "license.json"
+        self.pending_path = self.data_directory / "license_pending.json"
 
-    try:
-        payload = json.loads(payload_bytes.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise LicenseError("The license key contains unreadable data.") from exc
+    def _write_private_file(self, path, contents):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = path.with_name(f".{path.name}.tmp")
+        temporary_path.write_text(contents, encoding="utf-8")
 
-    if not isinstance(payload, dict):
-        raise LicenseError("The license key contains invalid data.")
+        if os.name != "nt":
+            temporary_path.chmod(0o600)
 
-    if payload.get("product") != PRODUCT_NAME:
-        raise LicenseError("This license key is for a different product.")
+        os.replace(temporary_path, path)
 
-    for field in ("license_id", "customer", "issued_at"):
-        if not isinstance(payload.get(field), str) or not payload[field].strip():
-            raise LicenseError("The license key is missing required information.")
+    def _write_json(self, path, data):
+        self._write_private_file(
+            path,
+            json.dumps(data, indent=2) + "\n",
+        )
 
-    expires_at = payload.get("expires_at")
-    if expires_at is not None:
-        if not isinstance(expires_at, str):
-            raise LicenseError("The license has an invalid expiration date.")
+    def _read_json(self, path):
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return None
+        except (OSError, json.JSONDecodeError) as exc:
+            raise LicenseError(
+                f"FinAlert could not read its saved license data: {path.name}."
+            ) from exc
+
+        if not isinstance(value, dict):
+            raise LicenseError(
+                f"FinAlert's saved license data is invalid: {path.name}."
+            )
+
+        return value
+
+    def _get_device_id(self):
+        try:
+            device_id = self.device_id_path.read_text(encoding="utf-8").strip()
+        except FileNotFoundError:
+            device_id = ""
+
+        if device_id:
+            try:
+                uuid.UUID(hex=device_id)
+            except ValueError as exc:
+                raise LicenseError(
+                    "FinAlert's saved device identity is unreadable. "
+                    "The license is locked to this device; contact support."
+                ) from exc
+            return device_id
+
+        device_id = uuid.uuid4().hex
+        self._write_private_file(self.device_id_path, device_id)
+        return device_id
+
+    @staticmethod
+    def _platform():
+        if sys.platform == "darwin":
+            return "macos"
+        if sys.platform == "win32":
+            return "windows"
+        return "unknown"
+
+    def _request(self, endpoint, payload):
+        try:
+            response = requests.post(
+                f"{LICENSE_API_BASE_URL}{endpoint}",
+                json=payload,
+                timeout=REQUEST_TIMEOUT,
+            )
+        except requests.RequestException as exc:
+            raise LicenseError(
+                "FinAlert could not reach the license service.",
+                retryable=True,
+            ) from exc
 
         try:
-            expiration = datetime.fromisoformat(
-                expires_at.replace("Z", "+00:00")
+            result = response.json()
+        except ValueError:
+            result = {}
+
+        if response.status_code == 200 and result.get("status") == "active":
+            return result
+
+        code = result.get("error", "")
+        messages = {
+            "license_not_valid": "That license key is invalid or revoked.",
+            "license_expired": "That license has expired.",
+            "license_locked_to_another_device": (
+                "That license key is locked to another device."
+            ),
+            "license_already_redeemed": (
+                "That license key has already been redeemed."
+            ),
+            "activation_not_valid": (
+                "FinAlert's saved activation is no longer valid."
+            ),
+            "activation_locked_to_another_device": (
+                "FinAlert's activation is locked to another device."
+            ),
+            "service_not_configured": (
+                "The license service is being configured. Try again later."
+            ),
+        }
+
+        retryable = (
+            response.status_code >= 500
+            or response.status_code == 429
+            or code == "service_not_configured"
+        )
+
+        message = messages.get(
+            code,
+            "FinAlert could not validate the license. Try again later.",
+        )
+        raise LicenseError(message, retryable=retryable, code=code)
+
+    def _redeem_pending_activation(self, pending):
+        return self._request(
+            "/api/activate",
+            {
+                "license_key": pending["license_key"],
+                "activation_token": pending["activation_token"],
+                "device_id": self._get_device_id(),
+                "platform": self._platform(),
+            },
+        )
+
+    def _validate_activation(self, activation_token):
+        return self._request(
+            "/api/validate",
+            {
+                "activation_token": activation_token,
+                "device_id": self._get_device_id(),
+            },
+        )
+
+    def _remove_pending_activation(self):
+        try:
+            self.pending_path.unlink()
+        except FileNotFoundError:
+            pass
+
+    def _finish_pending_activation(self, pending):
+        try:
+            try:
+                result = self._validate_activation(
+                    pending["activation_token"],
+                )
+            except LicenseError as exc:
+                if exc.code != "activation_not_valid":
+                    raise
+                result = self._redeem_pending_activation(pending)
+
+            license_id = result.get("license_id")
+            if not license_id:
+                raise LicenseError(
+                    "The license service returned an incomplete activation."
+                )
+
+            self._write_json(
+                self.license_path,
+                {
+                    "activation_token": pending["activation_token"],
+                    "license_id": license_id,
+                    "last_validated_at": time.time(),
+                },
             )
-        except ValueError as exc:
-            raise LicenseError("The license has an invalid expiration date.") from exc
+            self._remove_pending_activation()
+            return True
+        except LicenseError as exc:
+            if not exc.retryable:
+                self._remove_pending_activation()
+            raise
 
-        if expiration.tzinfo is None:
-            raise LicenseError("The license expiration must include a timezone.")
+    def activate(self, license_key):
+        """Redeem a key once and save the device-bound activation token."""
+        key = str(license_key).strip().upper()
+        if not key:
+            raise LicenseError("Enter a license key.")
 
-        if expiration.astimezone(timezone.utc) <= datetime.now(timezone.utc):
-            raise LicenseError("This license key has expired.")
+        if self.license_path.exists():
+            raise LicenseError("FinAlert is already activated on this device.")
 
-    return payload
+        existing_pending = self._read_json(self.pending_path)
+        if existing_pending is not None:
+            raise LicenseError(
+                "A previous activation is still pending. Connect to the "
+                "internet and restart FinAlert to finish it."
+            )
+
+        pending = {
+            "license_key": key,
+            "activation_token": secrets.token_urlsafe(32),
+        }
+
+        self._write_json(self.pending_path, pending)
+        self._finish_pending_activation(pending)
+
+    def check_saved_license(self):
+        """Check the saved activation, allowing a limited offline grace."""
+        pending = self._read_json(self.pending_path)
+        if pending is not None:
+            if (
+                not isinstance(pending.get("license_key"), str)
+                or not isinstance(pending.get("activation_token"), str)
+            ):
+                raise LicenseError("FinAlert's pending activation is invalid.")
+            return self._finish_pending_activation(pending)
+
+        state = self._read_json(self.license_path)
+        if state is None:
+            raise LicenseError("Enter a license key to activate FinAlert.")
+
+        activation_token = state.get("activation_token")
+        last_validated_at = state.get("last_validated_at")
+
+        if (
+            not isinstance(activation_token, str)
+            or not isinstance(last_validated_at, (int, float))
+        ):
+            raise LicenseError("FinAlert's saved activation is invalid.")
+
+        now = time.time()
+        age = now - float(last_validated_at)
+
+        if 0 <= age < ONLINE_CHECK_INTERVAL:
+            return True
+
+        try:
+            result = self._validate_activation(activation_token)
+        except LicenseError as exc:
+            if exc.retryable and 0 <= age <= OFFLINE_GRACE_PERIOD:
+                return True
+            if exc.retryable:
+                raise LicenseError(
+                    "FinAlert needs an internet connection to renew its "
+                    "activation.",
+                    retryable=True,
+                    code=exc.code,
+                ) from exc
+            raise
+
+        state["license_id"] = result.get(
+            "license_id",
+            state.get("license_id"),
+        )
+        state["last_validated_at"] = now
+        self._write_json(self.license_path, state)
+        return True
