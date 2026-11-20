@@ -975,6 +975,11 @@ def main():
     application = QApplication(sys.argv)
     application.setStyle("Fusion")
 
+    from license_dialog import ensure_license
+
+    if not ensure_license():
+        return 0
+
     window = FinAlertWindow()
     window.show()
     return application.exec()
