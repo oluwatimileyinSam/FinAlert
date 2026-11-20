@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import requests
 
@@ -9,6 +9,7 @@ LOGGER = logging.getLogger(__name__)
 
 GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
 PAGE_SIZE = 100
+MAX_TELEGRAM_DOCUMENT_BYTES = 50 * 1024 * 1024
 
 MESSAGE_FIELDS = ",".join([
     "id",
@@ -87,6 +88,146 @@ class GraphMailClient:
             overlap_seconds=overlap_seconds,
             limit_per_folder=None,
         )
+
+    def fetch_pdf_attachments(self, account, message_id):
+        """Download PDF file attachments from one Microsoft Graph message."""
+        if not message_id:
+            return []
+
+        token_result = self.authentication.acquire_for(account)
+        access_token = token_result.get("access_token")
+        if not access_token:
+            raise GraphAPIError("Microsoft did not provide a Graph access token.")
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json",
+        }
+
+        encoded_message_id = quote(str(message_id), safe="")
+        attachments_url = (
+            f"{GRAPH_BASE_URL}/me/messages/{encoded_message_id}/attachments"
+        )
+        next_url = attachments_url
+        params = {"$select": "id,name,contentType,size,isInline"}
+        pdf_attachments = []
+
+        while next_url:
+            self._validate_graph_url(next_url)
+
+            try:
+                response = self.session.get(
+                    next_url,
+                    headers=headers,
+                    params=params,
+                    timeout=self.timeout,
+                    allow_redirects=False,
+                )
+            except requests.RequestException as exc:
+                raise GraphAPIError(
+                    "Could not reach Microsoft Graph to read attachments."
+                ) from exc
+
+            if response.status_code != 200:
+                raise GraphAPIError(
+                    "Microsoft Graph could not read message attachments "
+                    f"(HTTP {response.status_code})."
+                )
+
+            try:
+                page = response.json()
+            except ValueError as exc:
+                raise GraphAPIError(
+                    "Microsoft Graph returned unreadable attachment data."
+                ) from exc
+
+            attachments = page.get("value")
+            if not isinstance(attachments, list):
+                raise GraphAPIError(
+                    "Microsoft Graph returned an unexpected attachment list."
+                )
+
+            for attachment in attachments:
+                attachment_type = attachment.get("@odata.type", "")
+                if attachment_type and not attachment_type.endswith(
+                    ".fileAttachment"
+                ):
+                    continue
+
+                name = str(attachment.get("name") or "attachment.pdf")
+                content_type = str(
+                    attachment.get("contentType") or ""
+                ).casefold()
+
+                if not (
+                    name.casefold().endswith(".pdf")
+                    or content_type == "application/pdf"
+                ):
+                    continue
+
+                attachment_id = attachment.get("id")
+                if not attachment_id:
+                    continue
+
+                size = attachment.get("size")
+                if (
+                    isinstance(size, int)
+                    and size > MAX_TELEGRAM_DOCUMENT_BYTES
+                ):
+                    pdf_attachments.append({
+                        "name": name,
+                        "content": None,
+                        "too_large": True,
+                    })
+                    continue
+
+                encoded_attachment_id = quote(str(attachment_id), safe="")
+                content_url = (
+                    f"{attachments_url}/{encoded_attachment_id}/$value"
+                )
+                self._validate_graph_url(content_url)
+
+                try:
+                    content_response = self.session.get(
+                        content_url,
+                        headers={
+                            "Authorization": f"Bearer {access_token}",
+                            "Accept": "application/octet-stream",
+                        },
+                        timeout=self.timeout,
+                        allow_redirects=False,
+                    )
+                except requests.RequestException as exc:
+                    raise GraphAPIError(
+                        "Could not download a PDF attachment from Graph."
+                    ) from exc
+
+                if content_response.status_code != 200:
+                    raise GraphAPIError(
+                        "Microsoft Graph could not download a PDF attachment "
+                        f"(HTTP {content_response.status_code})."
+                    )
+
+                content = content_response.content
+                if len(content) > MAX_TELEGRAM_DOCUMENT_BYTES:
+                    pdf_attachments.append({
+                        "name": name,
+                        "content": None,
+                        "too_large": True,
+                    })
+                    continue
+
+                pdf_attachments.append({
+                    "name": name,
+                    "content": content,
+                    "content_type": "application/pdf",
+                    "too_large": False,
+                })
+
+            next_url = page.get("@odata.nextLink")
+            params = None
+
+        return pdf_attachments
 
     def _fetch_messages(
         self,
