@@ -83,7 +83,7 @@ try {
         --distpath $DistRoot `
         --workpath $WorkRoot `
         --specpath $SpecRoot `
-        --add-data "assets/fin_alert_logo.svg:assets" `
+        --add-data "$Logo;assets" `
         "main.py"
 
     if ($LASTEXITCODE -ne 0) {
