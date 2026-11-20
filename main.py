@@ -1,7 +1,6 @@
 import configparser
 import logging
 import sys
-from collections import Counter
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -20,7 +19,8 @@ from PySide6.QtWidgets import (
 )
 
 from authentication.microsoft import AuthenticationError, MicrosoftAuth
-from email_monitor.graph_client import GraphAPIError, GraphMailClient
+from email_monitor.pipeline import FinanceScanner, default_database_path
+from storage.database import FinanceDatabase
 
 
 logging.basicConfig(level=logging.INFO)
@@ -33,6 +33,7 @@ class FinAlertWindow(QMainWindow):
         self.setWindowTitle("FinAlert")
         self.resize(1000, 650)
         self.auth = None
+        self.database = FinanceDatabase(default_database_path())
 
         self.navigation = QListWidget()
         self.navigation.addItems([
@@ -49,7 +50,7 @@ class FinAlertWindow(QMainWindow):
         self.pages.addWidget(
             self.make_page(
                 "Finance overview",
-                "Select Microsoft accounts to check recent mailbox messages.",
+                "Connect an account or scan a connected mailbox's last 60 days.",
             )
         )
         self.pages.addWidget(self.make_accounts_page())
@@ -59,12 +60,7 @@ class FinAlertWindow(QMainWindow):
                 "Telegram settings will be added in a later step.",
             )
         )
-        self.pages.addWidget(
-            self.make_page(
-                "Finance activity",
-                "Finance classification will be added in a later step.",
-            )
-        )
+        self.pages.addWidget(self.make_finance_page())
         self.pages.addWidget(
             self.make_page(
                 "Notification history",
@@ -88,6 +84,7 @@ class FinAlertWindow(QMainWindow):
         self.setCentralWidget(content)
 
         self.refresh_accounts()
+        self.refresh_finance_activity()
 
     @staticmethod
     def make_page(title, message):
@@ -122,18 +119,37 @@ class FinAlertWindow(QMainWindow):
         connect_button = QPushButton("Connect Microsoft account")
         connect_button.clicked.connect(self.connect_account)
 
+        scan_button = QPushButton("Scan selected account — last 60 days")
+        scan_button.clicked.connect(self.scan_selected_account)
+
         disconnect_button = QPushButton("Disconnect selected")
         disconnect_button.clicked.connect(self.disconnect_account)
 
-        check_button = QPushButton("Check selected mailbox")
-        check_button.clicked.connect(self.check_selected_mailbox)
-
         buttons = QHBoxLayout()
         buttons.addWidget(connect_button)
+        buttons.addWidget(scan_button)
         buttons.addWidget(disconnect_button)
-        buttons.addWidget(check_button)
         buttons.addStretch()
         layout.addLayout(buttons)
+
+        return page
+
+    def make_finance_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        heading = QLabel("Finance activity")
+        heading.setStyleSheet("font-size: 26px; font-weight: 600;")
+        layout.addWidget(heading)
+        layout.addWidget(
+            QLabel(
+                "Classified finance messages from Inbox and Sent Items "
+                "appear below."
+            )
+        )
+
+        self.finance_list = QListWidget()
+        layout.addWidget(self.finance_list, 1)
 
         return page
 
@@ -164,22 +180,109 @@ class FinAlertWindow(QMainWindow):
 
     def connect_account(self):
         try:
-            self.get_auth().connect()
+            auth = self.get_auth()
+            result = auth.connect()
             self.refresh_accounts()
+
+            username = (
+                result.get("id_token_claims", {})
+                .get("preferred_username", "")
+                .casefold()
+            )
+            accounts = auth.accounts()
+            account = next(
+                (
+                    item for item in accounts
+                    if item.get("username", "").casefold() == username
+                ),
+                accounts[-1] if accounts else None,
+            )
+
+            if account is None:
+                QMessageBox.warning(
+                    self,
+                    "Account connected",
+                    "The account connected, but FinAlert couldn't find it "
+                    "in the saved account list.",
+                )
+                return
+
+            self.scan_account(account)
+
+        except AuthenticationError as exc:
+            QMessageBox.warning(self, "Microsoft sign-in", str(exc))
+        except Exception:
+            logging.exception("Unexpected Microsoft sign-in or scan error")
+            QMessageBox.critical(
+                self,
+                "FinAlert",
+                "The account connected, but FinAlert couldn't finish "
+                "the initial scan. Check your connection and try again.",
+            )
+
+    def scan_selected_account(self):
+        item = self.account_list.currentItem()
+        if item is None:
             QMessageBox.information(
                 self,
-                "Account connected",
-                "The Microsoft account was connected.",
+                "Scan mailbox",
+                "Select a connected Microsoft account first.",
+            )
+            return
+
+        account_id = item.data(Qt.ItemDataRole.UserRole)
+
+        try:
+            account = next(
+                (
+                    item for item in self.get_auth().accounts()
+                    if item.get("home_account_id") == account_id
+                ),
+                None,
+            )
+            if account is None:
+                QMessageBox.warning(
+                    self,
+                    "Scan mailbox",
+                    "That Microsoft account is no longer connected.",
+                )
+                return
+
+            self.scan_account(account)
+
+        except AuthenticationError as exc:
+            QMessageBox.warning(self, "Microsoft sign-in", str(exc))
+
+    def scan_account(self, account):
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            result = FinanceScanner(
+                self.get_auth(),
+                self.database,
+            ).scan_initial_history(account, days=60)
+
+            self.refresh_finance_activity()
+            QMessageBox.information(
+                self,
+                "60-day scan complete",
+                f"Messages scanned: {result['total_messages_scanned']}\n"
+                f"Finance messages found: {result['finance_messages_found']}\n"
+                f"New finance records saved: "
+                f"{result['new_finance_messages_recorded']}\n\n"
+                "Telegram notifications are not enabled yet.",
             )
         except AuthenticationError as exc:
             QMessageBox.warning(self, "Microsoft sign-in", str(exc))
         except Exception:
-            logging.exception("Unexpected Microsoft sign-in error")
+            logging.exception("The 60-day mailbox scan failed")
             QMessageBox.critical(
                 self,
-                "Microsoft sign-in",
-                "Sign-in could not be completed. Check your connection and try again.",
+                "Mailbox scan",
+                "FinAlert couldn't complete the scan. "
+                "Check your connection and try again.",
             )
+        finally:
+            QApplication.restoreOverrideCursor()
 
     def refresh_accounts(self):
         self.account_list.clear()
@@ -201,56 +304,38 @@ class FinAlertWindow(QMainWindow):
         if self.account_list.count():
             self.account_list.setCurrentRow(0)
 
-    def check_selected_mailbox(self):
-        item = self.account_list.currentItem()
-        if item is None:
-            QMessageBox.information(
-                self,
-                "Check mailbox",
-                "Select a connected Microsoft account first.",
-            )
+    def refresh_finance_activity(self):
+        self.finance_list.clear()
+        records = self.database.list_messages(limit=1000)
+
+        if not records:
+            self.finance_list.addItem("No finance activity found yet.")
             return
 
-        account_id = item.data(Qt.ItemDataRole.UserRole)
+        for record in records:
+            direction = (
+                "Sent"
+                if record.get("folder") == "Sent Items"
+                else "Received"
+            )
+            category = record.get("finance_category") or "Finance related"
+            subject = record.get("subject") or "(No subject)"
+            sender = (
+                record.get("sender_name")
+                or record.get("sender_address")
+                or "Unknown sender"
+            )
+            date = (
+                record.get("sent_at")
+                or record.get("received_at")
+                or record.get("first_seen_at")
+                or ""
+            )
 
-        try:
-            account = next(
-                account
-                for account in self.get_auth().accounts()
-                if account.get("home_account_id") == account_id
-            )
-            messages = GraphMailClient(self.get_auth()).fetch_recent_messages(
-                account,
-                limit_per_folder=5,
-            )
-            counts = Counter(
-                message.get("fin_alert_folder")
-                for message in messages
-            )
-
-            QMessageBox.information(
-                self,
-                "Mailbox check complete",
-                "Recent messages loaded:\n"
-                f"Inbox: {counts['Inbox']}\n"
-                f"Sent Items: {counts['Sent Items']}",
-            )
-        except StopIteration:
-            QMessageBox.warning(
-                self,
-                "Check mailbox",
-                "That Microsoft account is no longer connected.",
-            )
-        except AuthenticationError as exc:
-            QMessageBox.warning(self, "Microsoft sign-in", str(exc))
-        except GraphAPIError as exc:
-            QMessageBox.warning(self, "Mailbox check", str(exc))
-        except Exception:
-            logging.exception("Unexpected mailbox check error")
-            QMessageBox.critical(
-                self,
-                "Mailbox check",
-                "FinAlert could not read this mailbox. Check the connection and try again.",
+            self.finance_list.addItem(
+                f"{category} · {direction} · {date}\n"
+                f"{subject}\n"
+                f"{sender}"
             )
 
     def disconnect_account(self):
