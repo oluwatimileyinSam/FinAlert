@@ -36,7 +36,7 @@ class NotificationService:
         self.body_length = max(0, min(self.body_length, 3000))
         self.telegram = TelegramClient(self.chat_id)
 
-    def send_activities(self, account_id, activities):
+    def send_activities(self, account_id, activities, account_label=None):
         """Send unsent classified messages and return delivery counts."""
         result = {
             "sent": 0,
@@ -74,6 +74,7 @@ class NotificationService:
                     classification,
                     include_body=self.include_body,
                     body_length=self.body_length,
+                    account_label=account_label,
                 )
                 self.telegram.send_message(text)
             except TelegramError:
