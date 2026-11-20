@@ -25,11 +25,35 @@
       </Directory>
     </StandardDirectory>
 
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="FinAlertProgramMenuFolder" Name="FinAlert" />
+    </StandardDirectory>
+
+    <DirectoryRef Id="FinAlertProgramMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="*">
+        <Shortcut
+          Id="FinAlertDashboardShortcut"
+          Name="FinAlert"
+          Description="Open the FinAlert dashboard"
+          Target="[INSTALLFOLDER]FinAlert.exe"
+          WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="RemoveFinAlertProgramMenuFolder" On="uninstall" />
+        <RegistryValue
+          Root="HKLM"
+          Key="Software\Perennis Fons\FinAlert"
+          Name="installed"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
     <Feature Id="MainFeature" Title="FinAlert" Level="1">
       <Files
         Include="..\..\dist\windows\FinAlert\**"
         Directory="INSTALLFOLDER" />
       <ComponentRef Id="BackgroundTaskScript" />
+      <ComponentRef Id="StartMenuShortcut" />
     </Feature>
 
     <SetProperty
