@@ -5,8 +5,7 @@
     Manufacturer="Perennis Fons"
     Version="1.0.0"
     UpgradeCode="B8C45C3D-71A0-4E6A-9D6C-2B1D58C47F13"
-    Scope="perMachine"
-    Platform="x64">
+    Scope="perMachine">
 
     <MajorUpgrade
       Schedule="afterInstallInitialize"
