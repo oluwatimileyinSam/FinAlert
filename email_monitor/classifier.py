@@ -6,8 +6,17 @@ FINANCE_SIGNAL_RE = re.compile(
     r"\b(?:invoice|invoicing|billing|bill|payment|remittance|"
     r"purchase order|accounts payable|accounts receivable|"
     r"balance due|overdue|past due|wire transfer|bank transfer|"
+    r"bank account|bank statement|bank transaction|bank fee|"
+    r"bank charge|bank details|credit card|debit card|"
+    r"card payment|card transaction|card charge|card purchase|"
+    r"card statement|ach|ach transfer|ach payment|"
+    r"automated clearing house|direct deposit|direct debit|"
+    r"electronic funds transfer|cash deposit|cash withdrawal|"
+    r"standing order|check payment|cheque payment|"
+    r"transaction alert|transaction notification|account activity|"
     r"credit note|debit note|refund|reimbursement|"
-    r"statement of account|financial transaction|transaction receipt)\b",
+    r"statement of account|financial transaction|"
+    r"transaction receipt|transaction)\b",
     re.IGNORECASE,
 )
 
