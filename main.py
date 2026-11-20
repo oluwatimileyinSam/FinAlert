@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSpinBox,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -23,7 +24,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app_config import CONFIG_PATH, microsoft_settings
+from app_config import (
+    CONFIG_PATH,
+    microsoft_settings,
+    save_scan_interval_seconds,
+    scan_interval_seconds,
+)
 from authentication.microsoft import AuthenticationError, MicrosoftAuth
 from email_monitor.pipeline import (
     FinanceScanner,
@@ -70,12 +76,7 @@ class FinAlertWindow(QMainWindow):
         self.pages.addWidget(self.telegram_settings)
         self.pages.addWidget(self.make_finance_page())
         self.pages.addWidget(self.make_notification_history_page())
-        self.pages.addWidget(
-            self.make_placeholder_page(
-                "Monitoring settings",
-                "Configure the check interval and notification categories here.",
-            )
-        )
+        self.pages.addWidget(self.make_settings_page())
 
         root = QWidget()
         root_layout = QHBoxLayout(root)
@@ -332,6 +333,70 @@ class FinAlertWindow(QMainWindow):
         layout.addWidget(description)
         layout.addWidget(self.finance_table, 1)
         return page
+
+    def make_settings_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+
+        heading = QLabel("Monitoring settings")
+        heading.setObjectName("SectionHeading")
+
+        description = QLabel(
+            "Choose how often the background monitor checks connected mailboxes."
+        )
+        description.setObjectName("SecondaryText")
+
+        panel = QFrame()
+        panel.setObjectName("StatCard")
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(20, 18, 20, 18)
+        panel_layout.setSpacing(16)
+
+        interval_row = QHBoxLayout()
+        interval_label = QLabel("Mailbox check interval")
+        interval_label.setObjectName("StatLabel")
+
+        self.scan_interval_input = QSpinBox()
+        self.scan_interval_input.setRange(15, 3600)
+        self.scan_interval_input.setSingleStep(15)
+        self.scan_interval_input.setSuffix(" seconds")
+        self.scan_interval_input.setValue(scan_interval_seconds())
+
+        interval_row.addWidget(interval_label)
+        interval_row.addStretch()
+        interval_row.addWidget(self.scan_interval_input)
+        panel_layout.addLayout(interval_row)
+
+        save_button = QPushButton("Save settings")
+        save_button.setObjectName("PrimaryButton")
+        save_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        save_button.clicked.connect(self.save_monitoring_settings)
+        panel_layout.addWidget(save_button, 0, Qt.AlignmentFlag.AlignLeft)
+
+        self.settings_status = QLabel(
+            "The saved interval applies the next time background monitoring starts."
+        )
+        self.settings_status.setObjectName("SecondaryText")
+
+        layout.addWidget(heading)
+        layout.addWidget(description)
+        layout.addWidget(panel)
+        layout.addWidget(self.settings_status)
+        layout.addStretch()
+        return page
+
+    def save_monitoring_settings(self):
+        try:
+            save_scan_interval_seconds(self.scan_interval_input.value())
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "Monitoring settings", str(exc))
+            return
+
+        self.settings_status.setText(
+            "Settings saved. The interval applies when background monitoring starts."
+        )
 
     def make_placeholder_page(self, title, description_text):
         page = QWidget()
