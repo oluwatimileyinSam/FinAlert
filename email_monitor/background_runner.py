@@ -1,11 +1,9 @@
-import configparser
 import logging
 import signal
 import threading
 from logging.handlers import RotatingFileHandler
 
 from app_config import CONFIG_PATH, microsoft_settings, scan_interval_seconds
-from license_manager import LicenseError, verify_license_key
 from authentication.microsoft import AuthenticationError, MicrosoftAuth
 from email_monitor.pipeline import FinanceScanner, default_database_path
 from notifications.service import NotificationService
@@ -53,27 +51,6 @@ def configure_logging():
             ),
         ],
     )
-
-
-def license_problem():
-    """Return a reason monitoring must pause, or None for a valid license."""
-    config = configparser.ConfigParser(interpolation=None)
-
-    try:
-        config.read(CONFIG_PATH, encoding="utf-8")
-    except (OSError, configparser.Error):
-        return "Local license settings could not be read."
-
-    license_key = config.get("License", "KEY", fallback="").strip()
-    if not license_key:
-        return "No license is saved. Open the FinAlert dashboard to activate."
-
-    try:
-        verify_license_key(license_key)
-    except LicenseError as exc:
-        return str(exc)
-
-    return None
 
 
 def scan_accounts(authentication, scanner, notifications):
@@ -124,6 +101,14 @@ def main():
         LOGGER.critical("Background monitoring could not start: %s", exc)
         return 1
 
+    LOGGER.info("Background monitoring started; interval is %s seconds.", interval)
+
+    authentication = MicrosoftAuth(client_id, authority)
+    silent_authentication = SilentAuthentication(authentication)
+    database = FinanceDatabase(default_database_path())
+    scanner = FinanceScanner(silent_authentication, database)
+    notifications = NotificationService(database, CONFIG_PATH)
+
     stop_event = threading.Event()
 
     def request_stop(_signum, _frame):
@@ -134,48 +119,7 @@ def main():
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, request_stop)
 
-    last_license_problem = None
     while not stop_event.is_set():
-        problem = license_problem()
-        if problem is None:
-            break
-
-        if problem != last_license_problem:
-            LOGGER.warning("Monitoring paused: %s", problem)
-            last_license_problem = problem
-
-        stop_event.wait(interval)
-
-    if stop_event.is_set():
-        LOGGER.info("Background monitoring stopped.")
-        return 0
-
-    try:
-        authentication = MicrosoftAuth(client_id, authority)
-    except AuthenticationError as exc:
-        LOGGER.critical("Microsoft authentication could not start: %s", exc)
-        return 1
-
-    silent_authentication = SilentAuthentication(authentication)
-    database = FinanceDatabase(default_database_path())
-    scanner = FinanceScanner(silent_authentication, database)
-    notifications = NotificationService(database, CONFIG_PATH)
-
-    LOGGER.info("Background monitoring started; interval is %s seconds.", interval)
-
-    while not stop_event.is_set():
-        problem = license_problem()
-        if problem:
-            if problem != last_license_problem:
-                LOGGER.warning("Monitoring paused: %s", problem)
-                last_license_problem = problem
-            stop_event.wait(interval)
-            continue
-
-        if last_license_problem is not None:
-            LOGGER.info("A valid license is active; monitoring resumed.")
-            last_license_problem = None
-
         scan_accounts(authentication, scanner, notifications)
         stop_event.wait(interval)
 
