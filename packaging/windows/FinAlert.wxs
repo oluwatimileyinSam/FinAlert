@@ -14,6 +14,9 @@
 
     <MediaTemplate EmbedCab="yes" />
 
+    <Icon Id="FinAlert.exe" SourceFile="assets\FinAlert.ico" />
+    <Property Id="ARPPRODUCTICON" Value="FinAlert.exe" />
+
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="FinAlert">
         <Component Id="BackgroundTaskScript" Guid="*">
@@ -36,7 +39,9 @@
           Name="FinAlert"
           Description="Open the FinAlert dashboard"
           Target="[INSTALLFOLDER]FinAlert.exe"
-          WorkingDirectory="INSTALLFOLDER" />
+          WorkingDirectory="INSTALLFOLDER"
+          Icon="FinAlert.exe"
+          IconIndex="0" />
         <RemoveFolder Id="RemoveFinAlertProgramMenuFolder" On="uninstall" />
         <RegistryValue
           Root="HKLM"
