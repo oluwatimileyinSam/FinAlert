@@ -6,7 +6,9 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
+    QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -14,6 +16,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QStackedWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -26,106 +30,221 @@ from storage.database import FinanceDatabase
 logging.basicConfig(level=logging.INFO)
 CONFIG_PATH = Path(__file__).resolve().parent / "fin_alert.ini"
 
+NAVIGATION_ITEMS = [
+    ("Dashboard", "Overview"),
+    ("Microsoft accounts", "Accounts"),
+    ("Telegram", "Telegram"),
+    ("Finance activity", "Activity"),
+    ("Notification history", "Notifications"),
+    ("Monitoring settings", "Settings"),
+]
+
 
 class FinAlertWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("FinAlert")
-        self.resize(1000, 650)
+        self.resize(1180, 760)
+        self.setMinimumSize(980, 640)
+
         self.auth = None
         self.database = FinanceDatabase(default_database_path())
-
-        self.navigation = QListWidget()
-        self.navigation.addItems([
-            "Dashboard",
-            "Microsoft accounts",
-            "Telegram",
-            "Finance activity",
-            "Notification history",
-            "Monitoring settings",
-        ])
-        self.navigation.setFixedWidth(210)
+        self.connected_account_count = 0
+        self.nav_buttons = []
 
         self.pages = QStackedWidget()
-        self.pages.addWidget(
-            self.make_page(
-                "Finance overview",
-                "Connect an account or scan a connected mailbox's last 60 days.",
-            )
-        )
+        self.page_title = QLabel()
+        self.account_status = QLabel("Monitoring not started")
+
+        self.pages.addWidget(self.make_dashboard_page())
         self.pages.addWidget(self.make_accounts_page())
         self.pages.addWidget(
-            self.make_page(
-                "Telegram",
-                "Telegram settings will be added in a later step.",
+            self.make_placeholder_page(
+                "Telegram configuration",
+                "Connect a Telegram bot to receive finance activity alerts.",
             )
         )
         self.pages.addWidget(self.make_finance_page())
         self.pages.addWidget(
-            self.make_page(
+            self.make_placeholder_page(
                 "Notification history",
-                "Sent notifications will appear here.",
+                "Telegram delivery history will appear here.",
             )
         )
         self.pages.addWidget(
-            self.make_page(
+            self.make_placeholder_page(
                 "Monitoring settings",
-                "Monitoring controls will be added later.",
+                "Configure the check interval and notification categories here.",
             )
         )
 
-        self.navigation.currentRowChanged.connect(self.pages.setCurrentIndex)
-        self.navigation.setCurrentRow(0)
+        root = QWidget()
+        root_layout = QHBoxLayout(root)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+        root_layout.addWidget(self.make_sidebar())
 
         content = QWidget()
-        layout = QHBoxLayout(content)
-        layout.addWidget(self.navigation)
-        layout.addWidget(self.pages, 1)
-        self.setCentralWidget(content)
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(28, 22, 28, 24)
+        content_layout.setSpacing(18)
+        content_layout.addWidget(self.make_topbar())
+        content_layout.addWidget(self.pages, 1)
 
+        root_layout.addWidget(content, 1)
+        self.setCentralWidget(root)
+
+        self.setStyleSheet(self.stylesheet())
+        self.navigate(0)
         self.refresh_accounts()
         self.refresh_finance_activity()
 
-    @staticmethod
-    def make_page(title, message):
+    def make_sidebar(self):
+        sidebar = QFrame()
+        sidebar.setObjectName("Sidebar")
+        sidebar.setFixedWidth(224)
+
+        layout = QVBoxLayout(sidebar)
+        layout.setContentsMargins(18, 22, 18, 18)
+        layout.setSpacing(8)
+
+        brand = QHBoxLayout()
+        brand_icon = QLabel("F")
+        brand_icon.setObjectName("BrandIcon")
+        brand_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        brand_text = QVBoxLayout()
+        brand_name = QLabel("FinAlert")
+        brand_name.setObjectName("BrandName")
+        brand_subtitle = QLabel("FINANCE MONITORING")
+        brand_subtitle.setObjectName("BrandSubtitle")
+        brand_text.addWidget(brand_name)
+        brand_text.addWidget(brand_subtitle)
+
+        brand.addWidget(brand_icon)
+        brand.addLayout(brand_text)
+        brand.addStretch()
+        layout.addLayout(brand)
+        layout.addSpacing(30)
+
+        section_label = QLabel("WORKSPACE")
+        section_label.setObjectName("SidebarSection")
+        layout.addWidget(section_label)
+
+        for index, (label, _title) in enumerate(NAVIGATION_ITEMS):
+            button = QPushButton(label)
+            button.setObjectName("NavButton")
+            button.setCheckable(True)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.clicked.connect(
+                lambda _checked=False, page_index=index: self.navigate(page_index)
+            )
+            self.nav_buttons.append(button)
+            layout.addWidget(button)
+
+        layout.addStretch()
+
+        footer = QLabel("Secure mailbox monitoring")
+        footer.setObjectName("SidebarFooter")
+        layout.addWidget(footer)
+
+        return sidebar
+
+    def make_topbar(self):
+        topbar = QFrame()
+        topbar.setObjectName("Topbar")
+        layout = QHBoxLayout(topbar)
+        layout.setContentsMargins(0, 0, 0, 14)
+
+        self.page_title.setObjectName("PageTitle")
+        self.account_status.setObjectName("StatusPill")
+
+        layout.addWidget(self.page_title)
+        layout.addStretch()
+        layout.addWidget(self.account_status)
+        return topbar
+
+    def make_dashboard_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(20)
 
-        heading = QLabel(title)
-        heading.setStyleSheet("font-size: 26px; font-weight: 600;")
-        layout.addWidget(heading)
-        layout.addWidget(QLabel(message))
-        layout.addStretch()
+        intro = QVBoxLayout()
+        heading = QLabel("Good to see you")
+        heading.setObjectName("SectionHeading")
+        description = QLabel(
+            "Review finance activity across your connected mailboxes."
+        )
+        description.setObjectName("SecondaryText")
+        intro.addWidget(heading)
+        intro.addWidget(description)
+        layout.addLayout(intro)
+
+        cards = QHBoxLayout()
+        cards.setSpacing(14)
+
+        self.accounts_value = QLabel("0")
+        self.activities_value = QLabel("0")
+        self.overdue_value = QLabel("0")
+        self.telegram_value = QLabel("Not configured")
+
+        cards.addWidget(self.make_stat_card("Connected accounts", self.accounts_value))
+        cards.addWidget(self.make_stat_card("Finance activity", self.activities_value))
+        cards.addWidget(self.make_stat_card("Overdue invoices", self.overdue_value))
+        cards.addWidget(self.make_stat_card("Telegram", self.telegram_value))
+        layout.addLayout(cards)
+
+        section_header = QHBoxLayout()
+        recent_title = QLabel("Recent finance activity")
+        recent_title.setObjectName("SectionHeading")
+        section_header.addWidget(recent_title)
+        section_header.addStretch()
+
+        view_all = QPushButton("View all")
+        view_all.setObjectName("TextButton")
+        view_all.clicked.connect(lambda: self.navigate(3))
+        section_header.addWidget(view_all)
+        layout.addLayout(section_header)
+
+        self.dashboard_table = self.make_activity_table()
+        layout.addWidget(self.dashboard_table, 1)
 
         return page
 
     def make_accounts_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(18)
 
-        heading = QLabel("Microsoft accounts")
-        heading.setStyleSheet("font-size: 26px; font-weight: 600;")
-        layout.addWidget(heading)
-        layout.addWidget(
-            QLabel(
-                "Connect mailboxes independently. "
-                "FinAlert requests read-only access."
-            )
+        heading = QLabel("Connected mailboxes")
+        heading.setObjectName("SectionHeading")
+        description = QLabel(
+            "Each mailbox is authenticated separately. FinAlert requests "
+            "read-only mail access."
         )
+        description.setObjectName("SecondaryText")
+        layout.addWidget(heading)
+        layout.addWidget(description)
 
         self.account_list = QListWidget()
+        self.account_list.setObjectName("AccountList")
         layout.addWidget(self.account_list, 1)
 
+        buttons = QHBoxLayout()
         connect_button = QPushButton("Connect Microsoft account")
+        connect_button.setObjectName("PrimaryButton")
         connect_button.clicked.connect(self.connect_account)
 
-        scan_button = QPushButton("Scan selected account — last 60 days")
+        scan_button = QPushButton("Scan last 60 days")
+        scan_button.setObjectName("SecondaryButton")
         scan_button.clicked.connect(self.scan_selected_account)
 
-        disconnect_button = QPushButton("Disconnect selected")
+        disconnect_button = QPushButton("Disconnect")
+        disconnect_button.setObjectName("SecondaryButton")
         disconnect_button.clicked.connect(self.disconnect_account)
 
-        buttons = QHBoxLayout()
         buttons.addWidget(connect_button)
         buttons.addWidget(scan_button)
         buttons.addWidget(disconnect_button)
@@ -137,21 +256,250 @@ class FinAlertWindow(QMainWindow):
     def make_finance_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
 
         heading = QLabel("Finance activity")
-        heading.setStyleSheet("font-size: 26px; font-weight: 600;")
-        layout.addWidget(heading)
-        layout.addWidget(
-            QLabel(
-                "Classified finance messages from Inbox and Sent Items "
-                "appear below."
-            )
+        heading.setObjectName("SectionHeading")
+        description = QLabel(
+            "Classified messages from Inbox and Sent Items."
         )
+        description.setObjectName("SecondaryText")
 
-        self.finance_list = QListWidget()
-        layout.addWidget(self.finance_list, 1)
+        self.finance_table = self.make_activity_table()
 
+        layout.addWidget(heading)
+        layout.addWidget(description)
+        layout.addWidget(self.finance_table, 1)
         return page
+
+    def make_placeholder_page(self, title, description_text):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+
+        heading = QLabel(title)
+        heading.setObjectName("SectionHeading")
+        description = QLabel(description_text)
+        description.setObjectName("SecondaryText")
+
+        panel = QFrame()
+        panel.setObjectName("EmptyPanel")
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(22, 22, 22, 22)
+        panel_layout.addWidget(description)
+        panel_layout.addStretch()
+
+        layout.addWidget(heading)
+        layout.addWidget(panel, 1)
+        return page
+
+    @staticmethod
+    def make_stat_card(label, value_label):
+        card = QFrame()
+        card.setObjectName("StatCard")
+
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(10)
+
+        label_widget = QLabel(label)
+        label_widget.setObjectName("StatLabel")
+        value_label.setObjectName("StatValue")
+
+        layout.addWidget(label_widget)
+        layout.addWidget(value_label)
+        return card
+
+    @staticmethod
+    def make_activity_table():
+        table = QTableWidget(0, 5)
+        table.setHorizontalHeaderLabels([
+            "Direction",
+            "Category",
+            "Subject",
+            "Sender",
+            "Date",
+        ])
+        table.setObjectName("ActivityTable")
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.setAlternatingRowColors(True)
+        table.verticalHeader().setVisible(False)
+        table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        return table
+
+    def navigate(self, index):
+        self.pages.setCurrentIndex(index)
+        self.page_title.setText(NAVIGATION_ITEMS[index][0])
+
+        for button_index, button in enumerate(self.nav_buttons):
+            button.setChecked(button_index == index)
+
+    def stylesheet(self):
+        return """
+            QWidget {
+                color: #1c2738;
+                font-family: "Segoe UI", "SF Pro Text", Arial;
+                font-size: 13px;
+            }
+            QMainWindow {
+                background: #f4f6fa;
+            }
+            QFrame#Sidebar {
+                background: #14213a;
+                border: none;
+            }
+            QLabel#BrandIcon {
+                background: #2f6fed;
+                color: white;
+                border-radius: 10px;
+                font-size: 22px;
+                font-weight: 700;
+                min-width: 42px;
+                max-width: 42px;
+                min-height: 42px;
+                max-height: 42px;
+            }
+            QLabel#BrandName {
+                color: white;
+                font-size: 18px;
+                font-weight: 700;
+            }
+            QLabel#BrandSubtitle {
+                color: #91a1bc;
+                font-size: 9px;
+                font-weight: 600;
+                letter-spacing: 1px;
+            }
+            QLabel#SidebarSection {
+                color: #8292ad;
+                font-size: 10px;
+                font-weight: 700;
+                padding: 0 10px 6px 10px;
+            }
+            QPushButton#NavButton {
+                background: transparent;
+                color: #c1ccdc;
+                border: none;
+                border-radius: 7px;
+                text-align: left;
+                padding: 11px 12px;
+                font-weight: 500;
+            }
+            QPushButton#NavButton:hover {
+                background: #20314e;
+                color: white;
+            }
+            QPushButton#NavButton:checked {
+                background: #263a5d;
+                color: white;
+                font-weight: 600;
+            }
+            QLabel#SidebarFooter {
+                color: #8292ad;
+                font-size: 11px;
+                padding: 8px 10px;
+            }
+            QFrame#Topbar {
+                background: transparent;
+                border: none;
+                border-bottom: 1px solid #e3e8f0;
+            }
+            QLabel#PageTitle {
+                color: #172338;
+                font-size: 16px;
+                font-weight: 650;
+            }
+            QLabel#StatusPill {
+                background: #e9edf4;
+                color: #56647a;
+                border-radius: 12px;
+                padding: 6px 11px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            QLabel#SectionHeading {
+                color: #19263a;
+                font-size: 19px;
+                font-weight: 650;
+            }
+            QLabel#SecondaryText {
+                color: #718096;
+                font-size: 12px;
+            }
+            QFrame#StatCard, QFrame#EmptyPanel {
+                background: white;
+                border: 1px solid #e4e9f1;
+                border-radius: 10px;
+            }
+            QLabel#StatLabel {
+                color: #718096;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            QLabel#StatValue {
+                color: #172338;
+                font-size: 22px;
+                font-weight: 700;
+            }
+            QTableWidget#ActivityTable, QListWidget#AccountList {
+                background: white;
+                alternate-background-color: #f8fafd;
+                border: 1px solid #e4e9f1;
+                border-radius: 9px;
+                gridline-color: #edf0f5;
+                selection-background-color: #eaf1ff;
+                selection-color: #1c2738;
+            }
+            QHeaderView::section {
+                background: #f8fafd;
+                color: #66758a;
+                border: none;
+                border-bottom: 1px solid #e4e9f1;
+                padding: 10px;
+                font-size: 11px;
+                font-weight: 650;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #edf0f5;
+            }
+            QPushButton#PrimaryButton, QPushButton#SecondaryButton,
+            QPushButton#TextButton {
+                border-radius: 7px;
+                padding: 9px 14px;
+                font-weight: 600;
+            }
+            QPushButton#PrimaryButton {
+                background: #2f6fed;
+                color: white;
+                border: 1px solid #2f6fed;
+            }
+            QPushButton#PrimaryButton:hover {
+                background: #245fd1;
+            }
+            QPushButton#SecondaryButton {
+                background: white;
+                color: #35445a;
+                border: 1px solid #d7deea;
+            }
+            QPushButton#SecondaryButton:hover {
+                background: #f6f8fc;
+            }
+            QPushButton#TextButton {
+                background: transparent;
+                color: #2f6fed;
+                border: none;
+            }
+            QPushButton#TextButton:hover {
+                background: #eaf1ff;
+            }
+        """
 
     def get_auth(self):
         if self.auth is None:
@@ -221,8 +569,8 @@ class FinAlertWindow(QMainWindow):
             )
 
     def scan_selected_account(self):
-        item = self.account_list.currentItem()
-        if item is None:
+        selected_item = self.account_list.currentItem()
+        if selected_item is None:
             QMessageBox.information(
                 self,
                 "Scan mailbox",
@@ -230,7 +578,7 @@ class FinAlertWindow(QMainWindow):
             )
             return
 
-        account_id = item.data(Qt.ItemDataRole.UserRole)
+        account_id = selected_item.data(Qt.ItemDataRole.UserRole)
 
         try:
             account = next(
@@ -290,11 +638,13 @@ class FinAlertWindow(QMainWindow):
         try:
             accounts = self.get_auth().accounts()
         except AuthenticationError:
-            return
+            accounts = []
+
+        self.connected_account_count = len(accounts)
 
         for account in accounts:
             username = account.get("username", "Microsoft account")
-            item = QListWidgetItem(f"{username} — Connected")
+            item = QListWidgetItem(f"{username}  ·  Connected")
             item.setData(
                 Qt.ItemDataRole.UserRole,
                 account.get("home_account_id"),
@@ -304,39 +654,65 @@ class FinAlertWindow(QMainWindow):
         if self.account_list.count():
             self.account_list.setCurrentRow(0)
 
+        self.refresh_dashboard()
+
     def refresh_finance_activity(self):
-        self.finance_list.clear()
         records = self.database.list_messages(limit=1000)
 
-        if not records:
-            self.finance_list.addItem("No finance activity found yet.")
-            return
+        self.populate_activity_table(self.finance_table, records)
+        self.populate_activity_table(self.dashboard_table, records[:5])
+
+        overdue_count = sum(
+            record.get("finance_category") == "overdue_invoice"
+            for record in records
+        )
+        self.activities_value.setText(str(len(records)))
+        self.overdue_value.setText(str(overdue_count))
+        self.refresh_dashboard()
+
+    @staticmethod
+    def populate_activity_table(table, records):
+        table.setRowCount(0)
 
         for record in records:
+            row_index = table.rowCount()
+            table.insertRow(row_index)
+
             direction = (
                 "Sent"
                 if record.get("folder") == "Sent Items"
                 else "Received"
             )
-            category = record.get("finance_category") or "Finance related"
-            subject = record.get("subject") or "(No subject)"
-            sender = (
-                record.get("sender_name")
-                or record.get("sender_address")
-                or "Unknown sender"
-            )
-            date = (
-                record.get("sent_at")
-                or record.get("received_at")
-                or record.get("first_seen_at")
-                or ""
-            )
+            values = [
+                direction,
+                record.get("finance_category") or "Finance related",
+                record.get("subject") or "(No subject)",
+                (
+                    record.get("sender_name")
+                    or record.get("sender_address")
+                    or "Unknown sender"
+                ),
+                (
+                    record.get("sent_at")
+                    or record.get("received_at")
+                    or record.get("first_seen_at")
+                    or ""
+                ),
+            ]
 
-            self.finance_list.addItem(
-                f"{category} · {direction} · {date}\n"
-                f"{subject}\n"
-                f"{sender}"
-            )
+            for column, value in enumerate(values):
+                table.setItem(
+                    row_index,
+                    column,
+                    QTableWidgetItem(str(value)),
+                )
+
+    def refresh_dashboard(self):
+        self.accounts_value.setText(str(self.connected_account_count))
+        self.account_status.setText(
+            f"{self.connected_account_count} connected "
+            f"· Monitoring not started"
+        )
 
     def disconnect_account(self):
         item = self.account_list.currentItem()
@@ -361,6 +737,8 @@ class FinAlertWindow(QMainWindow):
 
 def main():
     application = QApplication(sys.argv)
+    application.setStyle("Fusion")
+
     window = FinAlertWindow()
     window.show()
     return application.exec()
