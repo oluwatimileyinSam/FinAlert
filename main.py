@@ -24,6 +24,8 @@ from PySide6.QtWidgets import (
 
 from authentication.microsoft import AuthenticationError, MicrosoftAuth
 from email_monitor.pipeline import FinanceScanner, default_database_path
+from notifications.service import NotificationService
+from notifications.telegram_client import TelegramError
 from storage.database import FinanceDatabase
 from notifications.telegram_settings import TelegramSettingsWidget
 
@@ -637,14 +639,34 @@ class FinAlertWindow(QMainWindow):
             ).scan_initial_history(account, days=60)
 
             self.refresh_finance_activity()
+
+            if result["activities"]:
+                try:
+                    notification_result = NotificationService(
+                        self.database,
+                        CONFIG_PATH,
+                    ).send_activities(
+                        result["account_id"],
+                        result["activities"],
+                    )
+                    telegram_status = (
+                        f"\nTelegram alerts: {notification_result['sent']} sent, "
+                        f"{notification_result['skipped']} already sent, "
+                        f"{notification_result['failed']} failed."
+                    )
+                except TelegramError as exc:
+                    telegram_status = f"\nTelegram alerts not sent: {exc}"
+            else:
+                telegram_status = "\nTelegram alerts: No finance emails found."
+
             QMessageBox.information(
                 self,
                 "60-day scan complete",
                 f"Messages scanned: {result['total_messages_scanned']}\n"
                 f"Finance messages found: {result['finance_messages_found']}\n"
                 f"New finance records saved: "
-                f"{result['new_finance_messages_recorded']}\n\n"
-                "Telegram notifications are not enabled yet.",
+                f"{result['new_finance_messages_recorded']}"
+                f"{telegram_status}",
             )
         except AuthenticationError as exc:
             QMessageBox.warning(self, "Microsoft sign-in", str(exc))
