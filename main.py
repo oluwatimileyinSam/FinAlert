@@ -103,7 +103,7 @@ class FinAlertWindow(QMainWindow):
     def make_sidebar(self):
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
-        sidebar.setFixedWidth(224)
+        sidebar.setFixedWidth(232)
 
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(18, 22, 18, 18)
@@ -123,7 +123,7 @@ class FinAlertWindow(QMainWindow):
         else:
             brand_icon.setPixmap(logo_pixmap)
             brand_icon.setScaledContents(True)
-            brand_icon.setStyleSheet("background: white;")
+            brand_icon.setStyleSheet("background: transparent;")
 
         brand_text = QVBoxLayout()
         brand_name = QLabel("FinAlert")
@@ -156,7 +156,7 @@ class FinAlertWindow(QMainWindow):
 
         layout.addStretch()
 
-        footer = QLabel("Secure mailbox monitoring")
+        footer = QLabel("PERENNIS FONS  ·  SECURE MONITORING")
         footer.setObjectName("SidebarFooter")
         layout.addWidget(footer)
 
@@ -1008,6 +1008,36 @@ class FinAlertWindow(QMainWindow):
                 border-radius: 9px;
                 padding: 10px 12px;
                 font-size: 11px;
+            }
+
+            QFrame#Sidebar {
+                background: #0b1425;
+            }
+            QLabel#BrandIcon {
+                background: transparent;
+            }
+            QPushButton#NavButton {
+                border: 1px solid transparent;
+                border-left: 3px solid transparent;
+                border-radius: 8px;
+                padding: 12px 12px;
+            }
+            QPushButton#NavButton:checked {
+                background: #172d40;
+                color: #f4f7fb;
+                border: 1px solid #203951;
+                border-left: 3px solid #61e6c5;
+                font-weight: 700;
+            }
+            QPushButton#NavButton:hover {
+                background: #17243b;
+                color: white;
+            }
+            QLabel#SidebarFooter {
+                color: #8297b2;
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 0.7px;
             }
 """
 
