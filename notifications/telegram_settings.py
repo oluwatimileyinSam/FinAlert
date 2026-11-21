@@ -48,27 +48,55 @@ class TelegramSettingsWidget(QWidget):
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(18)
+        layout.setSpacing(16)
 
-        heading = QLabel("Telegram configuration")
-        heading.setObjectName("SectionHeading")
+        hero = QFrame()
+        hero.setObjectName("DashboardHero")
+        hero_layout = QVBoxLayout(hero)
+        hero_layout.setContentsMargins(26, 22, 26, 22)
+        hero_layout.setSpacing(9)
+
+        eyebrow = QLabel("ALERT DELIVERY  /  TELEGRAM")
+        eyebrow.setObjectName("HeroEyebrow")
+
+        headline = QLabel("Transaction alerts.\nReady when you are.")
+        headline.setObjectName("HeroTitle")
+
         description = QLabel(
-            "Configure where FinAlert sends notifications. The bot token is "
-            "saved in the operating system credential store, not in the "
-            "configuration file. Start a conversation with your bot before "
-            "finding its chat ID."
+            "Route important finance signals to Telegram with the email context "
+            "needed to recognize each message."
         )
-        description.setObjectName("SecondaryText")
+        description.setObjectName("HeroCopy")
         description.setWordWrap(True)
 
-        layout.addWidget(heading)
-        layout.addWidget(description)
+        hero_layout.addWidget(eyebrow)
+        hero_layout.addWidget(headline)
+        hero_layout.addWidget(description)
 
         panel = QFrame()
         panel.setObjectName("EmptyPanel")
         panel_layout = QVBoxLayout(panel)
-        panel_layout.setContentsMargins(22, 22, 22, 22)
-        panel_layout.setSpacing(16)
+        panel_layout.setContentsMargins(22, 20, 22, 20)
+        panel_layout.setSpacing(15)
+
+        panel_header = QHBoxLayout()
+        panel_title = QLabel("Telegram connection")
+        panel_title.setObjectName("AccountPanelTitle")
+
+        channel_label = QLabel("DELIVERY CHANNEL")
+        channel_label.setObjectName("HistoryChannel")
+
+        panel_header.addWidget(panel_title)
+        panel_header.addStretch()
+        panel_header.addWidget(channel_label)
+
+        security_note = QLabel(
+            "Your bot token is saved in the operating system credential store, "
+            "not in the configuration file. Start a conversation with your bot "
+            "before finding its chat ID."
+        )
+        security_note.setObjectName("SecondaryText")
+        security_note.setWordWrap(True)
 
         form = QFormLayout()
         form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -80,14 +108,15 @@ class TelegramSettingsWidget(QWidget):
         destination_layout = QHBoxLayout(destination_row)
         destination_layout.setContentsMargins(0, 0, 0, 0)
         destination_layout.setSpacing(8)
-
         destination_layout.addWidget(self.chat_id_input, 1)
+
         find_chat_button = QPushButton("Find chat ID")
         find_chat_button.setObjectName("SecondaryButton")
+        find_chat_button.setCursor(Qt.CursorShape.PointingHandCursor)
         find_chat_button.clicked.connect(self.find_chat_id)
         destination_layout.addWidget(find_chat_button)
-
         form.addRow("Destination", destination_row)
+
         form.addRow("Email content", self.include_body)
 
         body_row = QHBoxLayout()
@@ -96,29 +125,36 @@ class TelegramSettingsWidget(QWidget):
         body_row.addStretch()
         form.addRow("", body_row)
 
-        panel_layout.addLayout(form)
-        panel_layout.addWidget(self.status)
-
         buttons = QHBoxLayout()
+        buttons.setSpacing(10)
 
         save_button = QPushButton("Save settings")
         save_button.setObjectName("PrimaryButton")
+        save_button.setCursor(Qt.CursorShape.PointingHandCursor)
         save_button.clicked.connect(self.save_settings)
 
         test_button = QPushButton("Test bot")
         test_button.setObjectName("SecondaryButton")
+        test_button.setCursor(Qt.CursorShape.PointingHandCursor)
         test_button.clicked.connect(self.test_bot)
 
         send_test_button = QPushButton("Send test message")
         send_test_button.setObjectName("SecondaryButton")
+        send_test_button.setCursor(Qt.CursorShape.PointingHandCursor)
         send_test_button.clicked.connect(self.send_test_message)
 
         buttons.addWidget(save_button)
+        buttons.addStretch()
         buttons.addWidget(test_button)
         buttons.addWidget(send_test_button)
-        buttons.addStretch()
 
+        panel_layout.addLayout(panel_header)
+        panel_layout.addWidget(security_note)
+        panel_layout.addLayout(form)
+        panel_layout.addWidget(self.status)
         panel_layout.addLayout(buttons)
+
+        layout.addWidget(hero)
         layout.addWidget(panel)
         layout.addStretch()
 
