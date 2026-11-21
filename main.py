@@ -165,15 +165,27 @@ class FinAlertWindow(QMainWindow):
     def make_topbar(self):
         topbar = QFrame()
         topbar.setObjectName("Topbar")
+
         layout = QHBoxLayout(topbar)
         layout.setContentsMargins(0, 0, 0, 14)
+        layout.setSpacing(18)
+
+        title_stack = QVBoxLayout()
+        title_stack.setSpacing(3)
+
+        workspace_label = QLabel("PERENNIS FONS  /  FINANCIAL MONITORING")
+        workspace_label.setObjectName("TopbarEyebrow")
 
         self.page_title.setObjectName("PageTitle")
+        title_stack.addWidget(workspace_label)
+        title_stack.addWidget(self.page_title)
+
         self.account_status.setObjectName("StatusPill")
 
-        layout.addWidget(self.page_title)
+        layout.addLayout(title_stack)
         layout.addStretch()
         layout.addWidget(self.account_status)
+
         return topbar
 
     def make_dashboard_page(self):
@@ -1038,6 +1050,27 @@ class FinAlertWindow(QMainWindow):
                 font-size: 9px;
                 font-weight: 700;
                 letter-spacing: 0.7px;
+            }
+
+            QLabel#TopbarEyebrow {
+                color: #718096;
+                font-size: 9px;
+                font-weight: 750;
+                letter-spacing: 1.1px;
+            }
+            QLabel#PageTitle {
+                color: #101a2e;
+                font-size: 18px;
+                font-weight: 750;
+            }
+            QLabel#StatusPill {
+                background: #f0f3f7;
+                color: #526277;
+                border: 1px solid #dfe6ee;
+                border-radius: 12px;
+                padding: 7px 11px;
+                font-size: 10px;
+                font-weight: 650;
             }
 """
 
