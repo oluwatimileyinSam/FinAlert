@@ -1,8 +1,11 @@
 import logging
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -62,128 +65,209 @@ class LicenseActivationDialog(QDialog):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 28, 32, 24)
+        layout.setContentsMargins(20, 20, 20, 18)
         layout.setSpacing(14)
 
+        hero = QFrame()
+        hero.setObjectName("LicenseHero")
+        hero_layout = QVBoxLayout(hero)
+        hero_layout.setContentsMargins(22, 20, 22, 20)
+        hero_layout.setSpacing(10)
+
         brand_row = QHBoxLayout()
-        brand_icon = QLabel("F")
+        brand_icon = QLabel()
         brand_icon.setObjectName("BrandIcon")
         brand_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         brand_icon.setFixedSize(42, 42)
 
+        logo_path = Path(__file__).resolve().parent / "assets" / "fin_alert_logo.svg"
+        logo_pixmap = QPixmap(str(logo_path))
+
+        if logo_pixmap.isNull():
+            brand_icon.setText("F")
+        else:
+            brand_icon.setPixmap(logo_pixmap)
+            brand_icon.setScaledContents(True)
+
+        brand_text = QVBoxLayout()
         brand_name = QLabel("FinAlert")
         brand_name.setObjectName("BrandName")
+        brand_subtitle = QLabel("BY PERENNIS FONS")
+        brand_subtitle.setObjectName("BrandSubtitle")
+        brand_text.addWidget(brand_name)
+        brand_text.addWidget(brand_subtitle)
 
         brand_row.addWidget(brand_icon)
-        brand_row.addWidget(brand_name)
+        brand_row.addLayout(brand_text)
         brand_row.addStretch()
-        layout.addLayout(brand_row)
+
+        eyebrow = QLabel("SECURE DEVICE ACTIVATION")
+        eyebrow.setObjectName("LicenseEyebrow")
 
         heading = QLabel("Activate FinAlert")
         heading.setObjectName("Heading")
-        layout.addWidget(heading)
 
         description = QLabel(
-            "Redeem your license key once. It will be locked to this device."
+            "Redeem your one-time license key to unlock FinAlert. "
+            "Activation locks the key to this device."
         )
         description.setObjectName("Description")
         description.setWordWrap(True)
-        layout.addWidget(description)
+
+        hero_layout.addLayout(brand_row)
+        hero_layout.addSpacing(3)
+        hero_layout.addWidget(eyebrow)
+        hero_layout.addWidget(heading)
+        hero_layout.addWidget(description)
+
+        panel = QFrame()
+        panel.setObjectName("ActivationPanel")
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(20, 18, 20, 18)
+        panel_layout.setSpacing(11)
+
+        key_label = QLabel("License key")
+        key_label.setObjectName("KeyLabel")
 
         self.key_input = QLineEdit()
         self.key_input.setObjectName("LicenseKeyInput")
         self.key_input.setPlaceholderText("PF-XXXX-XXXX-…")
         self.key_input.setClearButtonEnabled(True)
         self.key_input.returnPressed.connect(self._activate)
-        layout.addWidget(self.key_input)
 
         self.status_label = QLabel()
         self.status_label.setObjectName("Status")
         self.status_label.setWordWrap(True)
-        layout.addWidget(self.status_label)
+
+        panel_layout.addWidget(key_label)
+        panel_layout.addWidget(self.key_input)
+        panel_layout.addWidget(self.status_label)
 
         button_row = QHBoxLayout()
         button_row.addStretch()
 
         self.cancel_button = QPushButton("Quit")
         self.cancel_button.setObjectName("SecondaryButton")
+        self.cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cancel_button.clicked.connect(self.reject)
 
         self.activate_button = QPushButton("Activate license")
         self.activate_button.setObjectName("PrimaryButton")
+        self.activate_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.activate_button.clicked.connect(self._activate)
 
         button_row.addWidget(self.cancel_button)
         button_row.addWidget(self.activate_button)
-        layout.addLayout(button_row)
 
-        footer = QLabel("License activation requires an internet connection.")
+        footer = QLabel(
+            "Online activation required  ·  One key, one device"
+        )
         footer.setObjectName("Footer")
+        footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer.setWordWrap(True)
+
+        layout.addWidget(hero)
+        layout.addWidget(panel)
+        layout.addLayout(button_row)
         layout.addWidget(footer)
 
         self.setStyleSheet(
             """
             QDialog {
-                background: #f5f7fb;
+                background: #f3f6fa;
                 color: #202a3a;
             }
+            QFrame#LicenseHero {
+                background: #101a2e;
+                border: 1px solid #233550;
+                border-radius: 16px;
+            }
+            QFrame#ActivationPanel {
+                background: white;
+                border: 1px solid #e0e6ef;
+                border-radius: 14px;
+            }
             QLabel#BrandIcon {
-                background: #2f6fed;
-                color: white;
+                background: transparent;
+                color: #61e6c5;
                 border-radius: 9px;
                 font-size: 23px;
                 font-weight: 700;
             }
             QLabel#BrandName {
-                color: #202a3a;
+                color: white;
                 font-size: 17px;
                 font-weight: 700;
                 padding-left: 7px;
             }
-            QLabel#Heading {
-                color: #202a3a;
-                font-size: 23px;
+            QLabel#BrandSubtitle {
+                color: #aab8cc;
+                font-size: 8px;
                 font-weight: 700;
-                padding-top: 8px;
+                letter-spacing: 1px;
+                padding-left: 7px;
             }
-            QLabel#Description, QLabel#Footer {
-                color: #65738a;
-                font-size: 13px;
+            QLabel#LicenseEyebrow {
+                color: #61e6c5;
+                font-size: 9px;
+                font-weight: 750;
+                letter-spacing: 1.3px;
+            }
+            QLabel#Heading {
+                color: #f4f7fb;
+                font-size: 25px;
+                font-weight: 750;
+            }
+            QLabel#Description {
+                color: #b9c5d6;
+                font-size: 12px;
+            }
+            QLabel#KeyLabel {
+                color: #19263a;
+                font-size: 12px;
+                font-weight: 700;
             }
             QLabel#Status {
+                background: #f4f7fa;
                 color: #44536a;
-                font-size: 13px;
-                min-height: 36px;
+                border: 1px solid #e6ebf1;
+                border-radius: 8px;
+                padding: 9px 10px;
+                font-size: 11px;
+                min-height: 28px;
+            }
+            QLabel#Footer {
+                color: #718096;
+                font-size: 10px;
             }
             QLineEdit#LicenseKeyInput {
                 background: white;
                 color: #202a3a;
                 border: 1px solid #cbd5e2;
-                border-radius: 7px;
+                border-radius: 8px;
                 padding: 11px 12px;
                 font-size: 14px;
-                selection-background-color: #2f6fed;
+                selection-background-color: #167f72;
             }
             QLineEdit#LicenseKeyInput:focus {
-                border: 1px solid #2f6fed;
+                border: 1px solid #167f72;
             }
             QPushButton {
-                border-radius: 7px;
-                padding: 9px 14px;
-                font-weight: 600;
+                border-radius: 8px;
+                padding: 10px 14px;
+                font-weight: 650;
             }
             QPushButton#PrimaryButton {
-                background: #2f6fed;
+                background: #167f72;
                 color: white;
-                border: 1px solid #2f6fed;
+                border: 1px solid #167f72;
             }
             QPushButton#PrimaryButton:hover {
-                background: #245fd1;
+                background: #126c61;
             }
             QPushButton#PrimaryButton:disabled {
-                background: #9bb7ef;
-                border-color: #9bb7ef;
+                background: #9bbdb6;
+                border-color: #9bbdb6;
             }
             QPushButton#SecondaryButton {
                 background: white;
