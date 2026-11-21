@@ -17,6 +17,8 @@ mkdir -p "$PROJECT_ROOT/build/specs"
     --clean \
     --windowed \
     --name FinAlert \
+    --paths "$PROJECT_ROOT" \
+    --hidden-import app_config \
     --osx-bundle-identifier com.perennisfons.finalert \
     --distpath "$PROJECT_ROOT/dist" \
     --workpath "$PROJECT_ROOT/build/pyinstaller" \
